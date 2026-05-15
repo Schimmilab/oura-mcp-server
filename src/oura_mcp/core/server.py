@@ -373,6 +373,22 @@ class OuraMCPServer:
                     }
                 ))
 
+            # HRV raw values in milliseconds from detailed sleep endpoint
+            tools.append(types.Tool(
+                name="get_hrv_trend",
+                description="Get raw HRV values in milliseconds (average_hrv from sleep endpoint) with resting HR and sleep stages — use for trend analysis over days/weeks",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "days": {
+                            "type": "integer",
+                            "description": "Number of days to retrieve",
+                            "default": 30
+                        }
+                    }
+                }
+            ))
+
             # Add debug tool to see raw data
             tools.append(types.Tool(
                 name="get_raw_sleep_data",
@@ -739,6 +755,11 @@ class OuraMCPServer:
                     result = await self._tool_detect_anomalies(metric_type, days)
                     return [types.TextContent(type="text", text=result)]
 
+                elif name == "get_hrv_trend":
+                    days = arguments.get("days", 30)
+                    result = await self._tool_get_hrv_trend(days)
+                    return [types.TextContent(type="text", text=result)]
+
                 elif name == "get_sleep_sessions":
                     days = arguments.get("days", 3)
                     result = await self._tool_get_sleep_sessions(days)
@@ -881,6 +902,10 @@ class OuraMCPServer:
     async def _tool_analyze_sleep_trend(self, days: int) -> str:
         """Analyze sleep trend."""
         return await self.debug_tools.analyze_sleep_trend(days)
+
+    async def _tool_get_hrv_trend(self, days: int) -> str:
+        """Get raw HRV values in ms from detailed sleep endpoint."""
+        return await self.debug_tools.get_hrv_trend(days)
 
     async def _tool_get_raw_sleep_data(self, days: int) -> str:
         """Get raw sleep data from Oura API for debugging."""

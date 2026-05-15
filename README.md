@@ -4,6 +4,11 @@ A Model Context Protocol (MCP) server that provides AI assistants with structure
 
 ## Features
 
+### 📊 Raw HRV Data Access (v0.7.0) ✅
+- **Raw HRV Trend**: `get_hrv_trend` — retrieves `average_hrv` in real milliseconds from the detailed sleep endpoint (not score-based), with resting HR (lowest nightly value), sleep stages, and automatic trend analysis across configurable time windows (NEW in v0.7.0)
+
+## Features
+
 ### 🍽️ Nutrition Intelligence (v0.6.0) ✅
 - **Calorie Needs Prediction**: 7-day TDEE forecasts based on activity patterns (NEW in v0.6.0)
 - **Flexible Macro Planning**: Choose from 9 nutrition styles OR set custom carb limits (NEW in v0.6.0)

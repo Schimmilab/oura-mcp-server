@@ -116,6 +116,60 @@ class DebugToolProvider:
 
         return result
 
+    async def get_hrv_trend(self, days: int) -> str:
+        """Get raw HRV values in milliseconds from the detailed sleep endpoint."""
+        end_date = date.today()
+        start_date = end_date - timedelta(days=days)
+
+        data = await self.oura_client.get_sleep(start_date, end_date)
+
+        if not data:
+            return f"No sleep data available for the last {days} days"
+
+        # Filter to main sleep sessions only (type == 'long_sleep'), skip naps
+        main_sessions = [d for d in data if d.get("type") in ("long_sleep", "sleep")]
+        if not main_sessions:
+            main_sessions = data
+
+        result = f"# HRV Trend — Raw Values in ms (Last {days} days)\n\n"
+        result += "| Datum | HRV Ø (ms) | Ruhepuls (bpm) | Schlaf gesamt | Tiefschlaf | REM |\n"
+        result += "|---|---|---|---|---|---|\n"
+
+        hrv_values = []
+        for session in sorted(main_sessions, key=lambda x: x.get("day", "")):
+            day = session.get("day", "?")
+            hrv = session.get("average_hrv")
+            hr = session.get("average_heart_rate")
+            lowest_hr = session.get("lowest_heart_rate")
+            total = session.get("total_sleep_duration", 0)
+            deep = session.get("deep_sleep_duration", 0)
+            rem = session.get("rem_sleep_duration", 0)
+
+            hrv_str = f"{hrv:.0f}" if hrv is not None else "—"
+            hr_str = f"{lowest_hr}" if lowest_hr is not None else (f"{hr:.0f}" if hr is not None else "—")
+            total_str = f"{total // 3600}h{(total % 3600) // 60}m" if total else "—"
+            deep_str = f"{deep // 60}m" if deep else "—"
+            rem_str = f"{rem // 60}m" if rem else "—"
+
+            result += f"| {day} | {hrv_str} | {hr_str} | {total_str} | {deep_str} | {rem_str} |\n"
+            if hrv is not None:
+                hrv_values.append(hrv)
+
+        if hrv_values:
+            avg = sum(hrv_values) / len(hrv_values)
+            first_half = hrv_values[:len(hrv_values)//2]
+            second_half = hrv_values[len(hrv_values)//2:]
+            avg_first = sum(first_half) / len(first_half) if first_half else 0
+            avg_second = sum(second_half) / len(second_half) if second_half else 0
+            trend_dir = "📈 steigend" if avg_second > avg_first else "📉 fallend"
+
+            result += f"\n**Gesamt-Ø:** {avg:.1f} ms · "
+            result += f"**Erste Hälfte Ø:** {avg_first:.1f} ms · "
+            result += f"**Zweite Hälfte Ø:** {avg_second:.1f} ms · "
+            result += f"**Trend:** {trend_dir} ({avg_second - avg_first:+.1f} ms)\n"
+
+        return result
+
     async def generate_weekly_report(
         self,
         weeks_ago: int = 0,
