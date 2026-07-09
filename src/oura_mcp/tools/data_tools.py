@@ -413,3 +413,240 @@ class DataToolProvider:
             result += "\n"
 
         return result
+
+    async def get_daily_resilience(self, days: int) -> str:
+        """Get daily resilience data (long-term stress-recovery balance)."""
+        end_date = date.today()
+        start_date = end_date - timedelta(days=days)
+
+        resilience_data = await self.oura_client.get_daily_resilience(start_date, end_date)
+
+        if not resilience_data:
+            return (
+                f"⚠️ No resilience data available for the last {days} days\n\n"
+                "*Note: Resilience needs several weeks of consistent Oura wear to be calculated.*"
+            )
+
+        level_emoji = {
+            "limited": "🔴",
+            "adequate": "🟠",
+            "solid": "🟢",
+            "strong": "💪",
+            "exceptional": "🏆",
+        }
+
+        def fmt_contrib(value: Any) -> str:
+            return f"{value:.0f}" if isinstance(value, (int, float)) else "N/A"
+
+        result = f"# 🛡️ Daily Resilience (Last {days} days)\n\n"
+        result += f"**Retrieved {len(resilience_data)} records**\n\n"
+
+        records_sorted = sorted(
+            resilience_data, key=lambda r: r.get("day", ""), reverse=True
+        )
+
+        # Latest record with contributors
+        latest = records_sorted[0]
+        level = latest.get("level", "unknown")
+        emoji = level_emoji.get(level, "•")
+
+        result += f"## Latest ({latest.get('day', 'Unknown')})\n"
+        result += f"**Resilience Level:** {emoji} {level.title()}\n\n"
+
+        contributors = latest.get("contributors") or {}
+        if contributors:
+            result += "**Contributors (0-100):**\n"
+            result += f"- Sleep Recovery: {fmt_contrib(contributors.get('sleep_recovery'))}\n"
+            result += f"- Daytime Recovery: {fmt_contrib(contributors.get('daytime_recovery'))}\n"
+            result += f"- Stress: {fmt_contrib(contributors.get('stress'))}\n\n"
+
+        # Daily breakdown
+        result += "## Daily Breakdown\n\n"
+        for record in records_sorted:
+            day = record.get("day", "Unknown")
+            lvl = record.get("level", "unknown")
+            result += f"- **{day}:** {level_emoji.get(lvl, '•')} {lvl.title()}\n"
+
+        return result
+
+    async def get_daily_cardiovascular_age(self, days: int) -> str:
+        """Get daily cardiovascular age (estimated vascular age)."""
+        end_date = date.today()
+        start_date = end_date - timedelta(days=days)
+
+        try:
+            data = await self.oura_client.get_daily_cardiovascular_age(start_date, end_date)
+        except Exception as e:
+            msg = str(e)
+            if "Invalid access token" in msg or "401" in msg:
+                return (
+                    "⚠️ Cardiovascular Age is not accessible with this token\n\n"
+                    "*This metric requires an access token/scope that includes cardiovascular "
+                    "age data, or it may not be enabled for your account/region yet.*"
+                )
+            if "404" in msg:
+                return f"⚠️ No cardiovascular age data available for the last {days} days"
+            raise
+
+        if not data:
+            return (
+                f"⚠️ No cardiovascular age data available for the last {days} days\n\n"
+                "*Note: Cardiovascular age needs sufficient data history to be estimated.*"
+            )
+
+        result = f"# 🫀 Cardiovascular Age (Last {days} days)\n\n"
+        result += f"**Retrieved {len(data)} records**\n\n"
+
+        records_sorted = sorted(data, key=lambda r: r.get("day", ""), reverse=True)
+        latest = records_sorted[0]
+        va = latest.get("vascular_age")
+        if va is not None:
+            result += f"## Latest ({latest.get('day', 'Unknown')})\n"
+            result += f"**Estimated Vascular Age:** {va} years\n\n"
+
+        result += "## Daily Values\n\n"
+        for record in records_sorted:
+            day = record.get("day", "Unknown")
+            va = record.get("vascular_age")
+            if va is not None:
+                result += f"- **{day}:** {va} years\n"
+
+        return result
+
+    async def get_sleep_time(self, days: int) -> str:
+        """Get sleep time recommendations (optimal bedtime + recommendation)."""
+        end_date = date.today()
+        start_date = end_date - timedelta(days=days)
+
+        data = await self.oura_client.get_sleep_time(start_date, end_date)
+
+        if not data:
+            return (
+                f"⚠️ No sleep time recommendations available for the last {days} days\n\n"
+                "*Note: Recommendations need several days of sleep data to be generated.*"
+            )
+
+        def offset_to_clock(seconds: Any) -> str:
+            """Convert an offset in seconds (from local midnight) to HH:MM."""
+            if not isinstance(seconds, (int, float)):
+                return "N/A"
+            minutes_total = int(seconds // 60) % (24 * 60)
+            return f"{minutes_total // 60:02d}:{minutes_total % 60:02d}"
+
+        result = f"# ⏰ Sleep Time Recommendations (Last {days} days)\n\n"
+        result += f"**Retrieved {len(data)} records**\n\n"
+
+        for record in sorted(data, key=lambda r: r.get("day", ""), reverse=True):
+            day = record.get("day", "Unknown")
+            recommendation = record.get("recommendation") or "—"
+            status = record.get("status") or "—"
+
+            result += f"## 📅 {day}\n"
+            result += f"- **Recommendation:** {recommendation.replace('_', ' ')}\n"
+            result += f"- **Status:** {status.replace('_', ' ')}\n"
+
+            bedtime = record.get("optimal_bedtime")
+            if isinstance(bedtime, dict):
+                start = offset_to_clock(bedtime.get("start_offset"))
+                end = offset_to_clock(bedtime.get("end_offset"))
+                result += f"- **Optimal Bedtime Window:** {start} – {end}\n"
+            result += "\n"
+
+        return result
+
+    async def get_rest_mode_periods(self, days: int) -> str:
+        """Get rest mode periods (user-activated recovery mode)."""
+        end_date = date.today()
+        start_date = end_date - timedelta(days=days)
+
+        data = await self.oura_client.get_rest_mode_periods(start_date, end_date)
+
+        if not data:
+            return (
+                f"No rest mode periods in the last {days} days\n\n"
+                "*Rest Mode is a recovery mode you activate manually in the Oura app "
+                "(e.g. when sick or recovering).*"
+            )
+
+        result = f"# 🌙 Rest Mode Periods (Last {days} days)\n\n"
+        result += f"**Retrieved {len(data)} period(s)**\n\n"
+
+        for record in sorted(data, key=lambda r: r.get("start_day", ""), reverse=True):
+            start_day = record.get("start_day", "Unknown")
+            end_day = record.get("end_day") or "ongoing"
+            result += f"## {start_day} → {end_day}\n"
+
+            episodes = record.get("episodes") or []
+            if episodes:
+                result += f"- **Episodes:** {len(episodes)}\n"
+                for ep in episodes:
+                    tags = ep.get("tags") or []
+                    timestamp = ep.get("timestamp", "")
+                    tag_str = ", ".join(tags) if tags else "—"
+                    result += f"  - {timestamp}: {tag_str}\n"
+            result += "\n"
+
+        return result
+
+    async def get_enhanced_tags(self, days: int) -> str:
+        """Get enhanced tags (named tags with start/end times and comments)."""
+        end_date = date.today()
+        start_date = end_date - timedelta(days=days)
+
+        data = await self.oura_client.get_enhanced_tags(start_date, end_date)
+
+        if not data:
+            return (
+                f"No enhanced tags in the last {days} days\n\n"
+                "*Enhanced tags are the richer tag type in the Oura app "
+                "(named tags with a time range and comments).*"
+            )
+
+        result = f"# 🏷️ Enhanced Tags (Last {days} days)\n\n"
+        result += f"**Retrieved {len(data)} tag(s)**\n\n"
+
+        tags_by_day: Dict[str, list] = {}
+        for tag in data:
+            day = tag.get("start_day", "Unknown")
+            tags_by_day.setdefault(day, []).append(tag)
+
+        for day in sorted(tags_by_day.keys(), reverse=True):
+            result += f"## 📅 {day}\n\n"
+            for tag in tags_by_day[day]:
+                name = tag.get("custom_name") or tag.get("tag_type_code") or "unknown"
+                comment = tag.get("comment")
+                result += f"- **{name}**"
+                if comment:
+                    result += f": {comment}"
+                result += "\n"
+            result += "\n"
+
+        return result
+
+    async def get_ring_configuration(self) -> str:
+        """Get ring configuration(s) — hardware details of the user's ring(s)."""
+        data = await self.oura_client.get_ring_configuration()
+
+        if not data:
+            return "No ring configuration found for this account."
+
+        result = f"# 💍 Ring Configuration\n\n"
+        result += f"**{len(data)} ring(s) registered**\n\n"
+
+        for idx, ring in enumerate(data, 1):
+            hardware = ring.get("hardware_type", "unknown")
+            color = (ring.get("color") or "unknown").replace("_", " ")
+            design = (ring.get("design") or "unknown").replace("_", " ")
+            size = ring.get("size", "N/A")
+            firmware = ring.get("firmware_version", "N/A")
+            set_up_at = ring.get("set_up_at") or "N/A"
+
+            result += f"## Ring {idx}\n"
+            result += f"- **Hardware:** {hardware}\n"
+            result += f"- **Color:** {color}\n"
+            result += f"- **Design:** {design}\n"
+            result += f"- **Size:** {size}\n"
+            result += f"- **Firmware:** {firmware}\n"
+            result += f"- **Set up at:** {set_up_at}\n\n"
+
+        return result

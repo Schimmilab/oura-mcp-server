@@ -469,6 +469,80 @@ class OuraMCPServer:
                 }
             ))
 
+            # Add daily resilience tool
+            tools.append(types.Tool(
+                name="get_daily_resilience",
+                description="Get daily resilience level (long-term stress-recovery balance) and its contributors",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "days": {
+                            "type": "integer",
+                            "description": "Number of days to retrieve",
+                            "default": 7
+                        }
+                    }
+                }
+            ))
+
+            # Add cardiovascular age tool
+            tools.append(types.Tool(
+                name="get_daily_cardiovascular_age",
+                description="Get estimated cardiovascular (vascular) age",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "days": {"type": "integer", "description": "Number of days to retrieve", "default": 30}
+                    }
+                }
+            ))
+
+            # Add sleep time recommendations tool
+            tools.append(types.Tool(
+                name="get_sleep_time",
+                description="Get sleep time recommendations (optimal bedtime window + recommendation)",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "days": {"type": "integer", "description": "Number of days to retrieve", "default": 7}
+                    }
+                }
+            ))
+
+            # Add rest mode periods tool
+            tools.append(types.Tool(
+                name="get_rest_mode_periods",
+                description="Get rest mode periods (user-activated recovery mode)",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "days": {"type": "integer", "description": "Number of days to retrieve", "default": 30}
+                    }
+                }
+            ))
+
+            # Add enhanced tags tool
+            tools.append(types.Tool(
+                name="get_enhanced_tags",
+                description="Get enhanced tags (named tags with time ranges and comments)",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "days": {"type": "integer", "description": "Number of days to retrieve", "default": 7}
+                    }
+                }
+            ))
+
+            # Add ring configuration tool
+            tools.append(types.Tool(
+                name="get_ring_configuration",
+                description="Get ring hardware configuration (color, design, firmware, size)",
+                inputSchema={
+                    "type": "object",
+                    "properties": {}
+                }
+            ))
+
             # Add SpO2 tool
             tools.append(types.Tool(
                 name="get_spo2_data",
@@ -780,6 +854,35 @@ class OuraMCPServer:
                     result = await self._tool_get_daily_stress(days)
                     return [types.TextContent(type="text", text=result)]
 
+                elif name == "get_daily_resilience":
+                    days = arguments.get("days", 7)
+                    result = await self._tool_get_daily_resilience(days)
+                    return [types.TextContent(type="text", text=result)]
+
+                elif name == "get_daily_cardiovascular_age":
+                    days = arguments.get("days", 30)
+                    result = await self._tool_get_daily_cardiovascular_age(days)
+                    return [types.TextContent(type="text", text=result)]
+
+                elif name == "get_sleep_time":
+                    days = arguments.get("days", 7)
+                    result = await self._tool_get_sleep_time(days)
+                    return [types.TextContent(type="text", text=result)]
+
+                elif name == "get_rest_mode_periods":
+                    days = arguments.get("days", 30)
+                    result = await self._tool_get_rest_mode_periods(days)
+                    return [types.TextContent(type="text", text=result)]
+
+                elif name == "get_enhanced_tags":
+                    days = arguments.get("days", 7)
+                    result = await self._tool_get_enhanced_tags(days)
+                    return [types.TextContent(type="text", text=result)]
+
+                elif name == "get_ring_configuration":
+                    result = await self._tool_get_ring_configuration()
+                    return [types.TextContent(type="text", text=result)]
+
                 elif name == "get_spo2_data":
                     days = arguments.get("days", 7)
                     result = await self._tool_get_spo2_data(days)
@@ -926,6 +1029,30 @@ class OuraMCPServer:
     async def _tool_get_daily_stress(self, days: int) -> str:
         """Get daily stress data."""
         return await self.data_tools.get_daily_stress(days)
+
+    async def _tool_get_daily_resilience(self, days: int) -> str:
+        """Get daily resilience data."""
+        return await self.data_tools.get_daily_resilience(days)
+
+    async def _tool_get_daily_cardiovascular_age(self, days: int) -> str:
+        """Get daily cardiovascular age data."""
+        return await self.data_tools.get_daily_cardiovascular_age(days)
+
+    async def _tool_get_sleep_time(self, days: int) -> str:
+        """Get sleep time recommendations."""
+        return await self.data_tools.get_sleep_time(days)
+
+    async def _tool_get_rest_mode_periods(self, days: int) -> str:
+        """Get rest mode periods."""
+        return await self.data_tools.get_rest_mode_periods(days)
+
+    async def _tool_get_enhanced_tags(self, days: int) -> str:
+        """Get enhanced tags."""
+        return await self.data_tools.get_enhanced_tags(days)
+
+    async def _tool_get_ring_configuration(self) -> str:
+        """Get ring configuration."""
+        return await self.data_tools.get_ring_configuration()
 
     async def _tool_get_spo2_data(self, days: int) -> str:
         """Get SpO2 (blood oxygen saturation) data."""

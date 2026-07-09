@@ -451,3 +451,171 @@ class OuraClient:
 
         response = await self._get("/v2/usercollection/tag", params)
         return response.get("data", [])
+
+    async def get_daily_resilience(
+        self,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get daily resilience data.
+
+        Resilience reflects long-term stress-recovery balance, derived from
+        sleep recovery, daytime recovery, and stress load.
+
+        Args:
+            start_date: Start date
+            end_date: End date
+
+        Returns:
+            List of daily resilience records with level and contributors
+        """
+        if end_date is None:
+            end_date = date.today()
+        if start_date is None:
+            start_date = end_date - timedelta(days=7)
+
+        params = {
+            "start_date": self._format_date(start_date),
+            "end_date": self._format_date(end_date),
+        }
+
+        response = await self._get("/v2/usercollection/daily_resilience", params)
+        return response.get("data", [])
+
+    async def get_daily_cardiovascular_age(
+        self,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get daily cardiovascular age estimates.
+
+        Estimates vascular age relative to chronological age based on
+        cardiovascular metrics.
+
+        Args:
+            start_date: Start date
+            end_date: End date
+
+        Returns:
+            List of daily cardiovascular age records
+        """
+        if end_date is None:
+            end_date = date.today()
+        if start_date is None:
+            start_date = end_date - timedelta(days=30)
+
+        params = {
+            "start_date": self._format_date(start_date),
+            "end_date": self._format_date(end_date),
+        }
+
+        response = await self._get("/v2/usercollection/daily_cardiovascular_age", params)
+        return response.get("data", [])
+
+    async def get_sleep_time(
+        self,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get sleep time recommendations.
+
+        Returns Oura's optimal bedtime window and a recommendation/status
+        per day (e.g. improve_efficiency / earlier_bedtime).
+
+        Args:
+            start_date: Start date
+            end_date: End date
+
+        Returns:
+            List of sleep time recommendation records
+        """
+        if end_date is None:
+            end_date = date.today()
+        if start_date is None:
+            start_date = end_date - timedelta(days=7)
+
+        params = {
+            "start_date": self._format_date(start_date),
+            "end_date": self._format_date(end_date),
+        }
+
+        response = await self._get("/v2/usercollection/sleep_time", params)
+        return response.get("data", [])
+
+    async def get_rest_mode_periods(
+        self,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get rest mode periods.
+
+        Rest Mode is a user-activated recovery mode; each period spans one or
+        more days with associated episodes.
+
+        Args:
+            start_date: Start date
+            end_date: End date
+
+        Returns:
+            List of rest mode period records
+        """
+        if end_date is None:
+            end_date = date.today()
+        if start_date is None:
+            start_date = end_date - timedelta(days=30)
+
+        params = {
+            "start_date": self._format_date(start_date),
+            "end_date": self._format_date(end_date),
+        }
+
+        response = await self._get("/v2/usercollection/rest_mode_period", params)
+        return response.get("data", [])
+
+    async def get_enhanced_tags(
+        self,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get enhanced tags.
+
+        Enhanced tags support named tags with start/end times and comments
+        (a richer successor to the classic tag endpoint).
+
+        Args:
+            start_date: Start date
+            end_date: End date
+
+        Returns:
+            List of enhanced tag records
+        """
+        if end_date is None:
+            end_date = date.today()
+        if start_date is None:
+            start_date = end_date - timedelta(days=7)
+
+        params = {
+            "start_date": self._format_date(start_date),
+            "end_date": self._format_date(end_date),
+        }
+
+        response = await self._get("/v2/usercollection/enhanced_tag", params)
+        return response.get("data", [])
+
+    async def get_ring_configuration(self) -> List[Dict[str, Any]]:
+        """
+        Get ring configuration(s).
+
+        Hardware details of the user's ring(s): color, design, firmware,
+        hardware generation and size. This endpoint is not date-filtered.
+
+        Returns:
+            List of ring configuration records
+        """
+        response = await self._get("/v2/usercollection/ring_configuration")
+        return response.get("data", [])

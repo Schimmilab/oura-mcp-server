@@ -17,6 +17,12 @@ This document provides a complete overview of all Oura Ring data accessible thro
 | **SpO2** | `get_spo2_data` | days (default: 7) | Blood oxygen saturation during sleep |
 | **VO2 Max** | `get_vo2_max` | days (default: 30) | Cardiorespiratory fitness estimates |
 | **Tags** | `get_tags` | days (default: 7) | User-created tags and notes |
+| **Daily Resilience** | `get_daily_resilience` | days (default: 7) | Long-term stress-recovery balance (level + sleep/daytime recovery & stress contributors) |
+| **Cardiovascular Age** | `get_daily_cardiovascular_age` | days (default: 30) | Estimated vascular age (requires token scope; graceful message if unavailable) |
+| **Sleep Time** | `get_sleep_time` | days (default: 7) | Optimal bedtime window + recommendation/status per day |
+| **Rest Mode Periods** | `get_rest_mode_periods` | days (default: 30) | User-activated recovery-mode periods with episodes |
+| **Enhanced Tags** | `get_enhanced_tags` | days (default: 7) | Named tags with time ranges and comments |
+| **Ring Configuration** | `get_ring_configuration` | — | Ring hardware details (color, design, firmware, size) |
 
 ### Intelligence Tools (Phase 2)
 
@@ -177,21 +183,19 @@ Resources are read-only data endpoints that Claude can access directly.
 - **Free Tier**: Basic sleep, readiness, activity
 - **Paid Subscription**: Full feature access including stress, detailed analytics
 
-## 🚫 Not Yet Available
+## 🚫 Not Available via This Server
 
-The following Oura API endpoints are not yet implemented:
-
-- Daily Resilience (`/v2/usercollection/daily_resilience`)
-- Daily Cardiovascular Age (`/v2/usercollection/daily_cardiovascular_age`)
-- Enhanced Tags (`/v2/usercollection/enhanced_tag`)
-- Rest Mode Periods (`/v2/usercollection/rest_mode_period`)
-- Ring Configuration (`/v2/usercollection/ring_configuration`)
-- Sleep Time Recommendations (`/v2/usercollection/sleep_time`)
-- Webhooks (`/v2/webhook/subscription`)
+- **Webhooks** (`/v2/webhook/subscription`) — **out of scope by design.** Webhook
+  subscriptions are managed with OAuth **application** credentials
+  (`x-client-id` / `x-client-secret`), not the personal access token this MCP
+  server uses. They control push-notification delivery to a public callback URL,
+  not user data an assistant would read. Managing them belongs in an OAuth app,
+  not this read-only data server. (With a personal access token the endpoint
+  returns `401 Invalid access token`.)
 
 ## 🎯 Coverage Summary
 
-**API Coverage: ~85%**
+**API Coverage: ~98%** (all user-data endpoints; only OAuth-app webhooks are out of scope)
 
 - ✅ All core daily metrics (sleep, readiness, activity)
 - ✅ Detailed session data (sleep periods, workouts)
@@ -199,7 +203,8 @@ The following Oura API endpoints are not yet implemented:
 - ✅ Advanced metrics (stress, SpO2, VO2 Max)
 - ✅ User data (personal info, tags)
 - ✅ Intelligence layer (baselines, recovery, correlations, anomalies)
-- ⚠️ Missing: Resilience, Cardiovascular Age, Enhanced Tags, Rest Mode
+- ✅ Resilience, Cardiovascular Age, Sleep Time, Rest Mode, Enhanced Tags, Ring Configuration
+- ⚙️ Out of scope: Webhooks (OAuth-app management, not user data)
 
 ## 📚 Related Documentation
 

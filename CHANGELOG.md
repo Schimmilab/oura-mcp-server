@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.0] - 2026-07-09
+
+### 🎉 Added - Complete Oura v2 User-Data Coverage
+- **Daily Resilience** (`get_daily_resilience`): long-term stress-recovery balance with level and sleep/daytime-recovery & stress contributors
+- **Cardiovascular Age** (`get_daily_cardiovascular_age`): estimated vascular age (graceful message when the token scope is unavailable)
+- **Sleep Time Recommendations** (`get_sleep_time`): optimal bedtime window plus per-day recommendation and status
+- **Rest Mode Periods** (`get_rest_mode_periods`): user-activated recovery-mode periods with episodes
+- **Enhanced Tags** (`get_enhanced_tags`): named tags with time ranges and comments
+- **Ring Configuration** (`get_ring_configuration`): ring hardware details (color, design, firmware, size)
+
+### 📝 Notes
+- API coverage now ~98% of user-data endpoints (all six added above)
+- **Webhooks** intentionally out of scope: they require OAuth application credentials (not the personal access token this server uses) and manage push delivery rather than readable user data — documented in `docs/DATA_COVERAGE.md`
+
+---
+
 ## [0.5.0] - 2026-01-17
 
 ### 🎉 Added - Personalized Health Insights
