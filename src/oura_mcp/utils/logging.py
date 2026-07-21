@@ -33,12 +33,13 @@ class JSONFormatter(logging.Formatter):
         return json.dumps(log_data)
 
 
-def setup_logging(config: LoggingConfig) -> None:
+def setup_logging(config: LoggingConfig, *, stdio_transport: bool = False) -> None:
     """
     Configure logging based on config.
     
     Args:
         config: Logging configuration
+        stdio_transport: Reserve stdout for MCP protocol messages when true
     """
     # Get root logger
     root_logger = logging.getLogger()
@@ -48,11 +49,18 @@ def setup_logging(config: LoggingConfig) -> None:
     root_logger.handlers.clear()
     
     # Create handler based on output type
-    if config.output == "file":
+    output = config.output
+    if stdio_transport and output == "stdout":
+        # MCP's stdio transport reserves stdout exclusively for JSON-RPC.
+        # A single log line there corrupts the protocol stream and can cause
+        # clients to repeatedly parse/retry messages, consuming CPU and memory.
+        output = "stderr"
+
+    if output == "file":
         log_path = Path(config.file_path)
         log_path.parent.mkdir(parents=True, exist_ok=True)
         handler = logging.FileHandler(log_path)
-    elif config.output == "stderr":
+    elif output == "stderr":
         handler = logging.StreamHandler(sys.stderr)
     else:
         handler = logging.StreamHandler(sys.stdout)

@@ -1401,7 +1401,10 @@ async def start_server(config_path: Optional[str] = None):
     config = get_config()
     
     # Setup logging
-    setup_logging(config.logging)
+    setup_logging(
+        config.logging,
+        stdio_transport=config.mcp.server.transport == "stdio",
+    )
     
     # Create and run server
     server = OuraMCPServer(config)
