@@ -263,3 +263,8 @@ MIT
 ## Contributing
 
 This is a personal project, but suggestions and improvements are welcome via issues.
+
+## Maintainer
+
+Schimmi — https://schimmilab.de
+Issues und Pull Requests willkommen.
