@@ -647,7 +647,7 @@ class IllnessDetector:
             if 'hrv' in baselines:
                 lines.append(f"- HRV Balance: {baselines['hrv']:.0f}/100")
             if 'resting_hr' in baselines:
-                lines.append(f"- Resting HR Score: {baselines['resting_hr']:.0f}/100 *(score, not BPM)*")
+                lines.append(f"- Resting Heart Rate: {baselines['resting_hr']:.0f} bpm")
             if 'respiratory_rate' in baselines:
                 lines.append(f"- Respiratory Rate: {baselines['respiratory_rate']:.1f} br/min")
             if 'recovery_score' in baselines:

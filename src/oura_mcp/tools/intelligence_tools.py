@@ -51,7 +51,6 @@ class IntelligenceToolProvider:
         # Extract key metrics
         readiness_score = readiness.get("score", 0)
         hrv_balance = contributors.get("hrv_balance", 50)
-        resting_hr = contributors.get("resting_heart_rate", 50)
         temp_score = contributors.get("body_temperature", 100)
 
         sleep_score = sleep_data[-1].get("score", 70) if sleep_data else 70

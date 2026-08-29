@@ -10,6 +10,8 @@ from typing import Dict, List, Optional, Tuple
 from statistics import mean, stdev
 from collections import defaultdict
 
+from .resting_hr import extract_resting_hr_values
+
 
 class WeeklyReportGenerator:
     """Generates comprehensive weekly health reports."""
@@ -43,7 +45,7 @@ class WeeklyReportGenerator:
         """
         # Calculate key metrics
         sleep_metrics = self._analyze_sleep_metrics(sleep_data)
-        readiness_metrics = self._analyze_readiness_metrics(readiness_data)
+        readiness_metrics = self._analyze_readiness_metrics(readiness_data, sleep_data)
         activity_metrics = self._analyze_activity_metrics(activity_data)
 
         # Identify highlights and lowlights
@@ -156,14 +158,17 @@ class WeeklyReportGenerator:
             'consistency': self._calculate_consistency(durations) if durations else 0
         }
 
-    def _analyze_readiness_metrics(self, readiness_data: List[Dict]) -> Dict:
+    def _analyze_readiness_metrics(
+        self,
+        readiness_data: List[Dict],
+        sleep_data: Optional[List[Dict]] = None,
+    ) -> Dict:
         """Analyze readiness metrics for the week."""
         if not readiness_data:
             return {}
 
         scores = []
         hrv_balances = []
-        resting_hrs = []
         body_temps = []
         recovery_indexes = []
 
@@ -181,9 +186,6 @@ class WeeklyReportGenerator:
                 if hrv:
                     hrv_balances.append(hrv)
 
-                rhr = contributors.get('resting_heart_rate')
-                if rhr:
-                    resting_hrs.append(rhr)
 
                 temp = contributors.get('body_temperature')
                 if temp:
@@ -193,10 +195,14 @@ class WeeklyReportGenerator:
                 if recovery:
                     recovery_indexes.append(recovery)
 
+        resting_hrs = extract_resting_hr_values(sleep_data or [])
+
         return {
             'days_tracked': len(readiness_data),
             'avg_score': mean(scores) if scores else 0,
             'avg_hrv_balance': mean(hrv_balances) if hrv_balances else 0,
+            # ⛔ Real bpm from the nightly trough, NOT contributors.resting_heart_rate
+            # — that is a 0-100 score and was printed here as "bpm" until v0.9.2.
             'avg_resting_hr': mean(resting_hrs) if resting_hrs else 0,
             'avg_body_temp': mean(body_temps) if body_temps else 0,
             'avg_recovery_index': mean(recovery_indexes) if recovery_indexes else 0,

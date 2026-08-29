@@ -107,7 +107,9 @@ class SupplementCorrelation:
                     'latency': session.get('latency', 0) / 60,  # minutes
                     'restlessness': session.get('restlessness', 0),
                     'hrv': session.get('heart_rate', {}).get('average', 0) if isinstance(session.get('heart_rate'), dict) else 0,
-                    'resting_hr': session.get('average_heart_rate', 0)
+                    # The nightly trough is the resting pulse; average_heart_rate is
+                    # the mean across the whole night and sits well above it.
+                    'resting_hr': session.get('lowest_heart_rate', 0)
                 }
             except (ValueError, TypeError, AttributeError):
                 continue

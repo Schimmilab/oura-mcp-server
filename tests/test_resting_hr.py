@@ -110,3 +110,39 @@ def test_naps_reporting_zero_do_not_drag_the_daily_mean_down():
     ])[0]
     assert day["average_heart_rate"] == pytest.approx(67.75)
     assert day["lowest_heart_rate"] == pytest.approx(62.0)
+
+
+# ------------------------------------------------------- other report surfaces
+
+def test_weekly_report_states_bpm_and_means_it():
+    """The weekly report printed the score as 'bpm' with no qualifier at all.
+
+    Same class of bug as the alarm, but silent: a plausible-looking 90 bpm.
+    """
+    from oura_mcp.utils.weekly_report import WeeklyReportGenerator
+
+    readiness = [
+        {"day": f"2026-08-{i + 1:02d}", "score": 70,
+         "contributors": {"resting_heart_rate": 97, "hrv_balance": 60}}
+        for i in range(7)
+    ]
+    metrics = WeeklyReportGenerator()._analyze_readiness_metrics(
+        readiness, _nights([60, 61, 59, 60, 62, 60, 61])
+    )
+    # The score in that fixture is 97; the real pulse averages ~60.4
+    assert 55 <= metrics["avg_resting_hr"] <= 65, (
+        f"expected a real pulse, got {metrics['avg_resting_hr']} "
+        "(97 would mean the score leaked through again)"
+    )
+
+
+def test_weekly_report_without_sleep_data_reports_nothing_rather_than_a_score():
+    from oura_mcp.utils.weekly_report import WeeklyReportGenerator
+
+    readiness = [
+        {"day": f"2026-08-{i + 1:02d}", "score": 70,
+         "contributors": {"resting_heart_rate": 97}}
+        for i in range(7)
+    ]
+    metrics = WeeklyReportGenerator()._analyze_readiness_metrics(readiness, None)
+    assert metrics["avg_resting_hr"] == 0, "no sleep data must not fall back to the score"

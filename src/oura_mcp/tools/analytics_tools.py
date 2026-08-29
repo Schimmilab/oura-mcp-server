@@ -37,7 +37,9 @@ class AnalyticsToolProvider:
         sleep_data = await self.oura_client.get_daily_sleep(start_date, end_date)
         # ⚠️ daily_sleep carries scores only. The resting heart rate lives in the
         # detailed sleep sessions, so fetch those too rather than reporting a score.
-        sleep_sessions = await self.oura_client.get_sleep(start_date, end_date)
+        sleep_sessions = aggregate_sleep_sessions_by_day(
+            await self.oura_client.get_sleep(start_date, end_date)
+        )
         readiness_data = await self.oura_client.get_daily_readiness(start_date, end_date)
         activity_data = await self.oura_client.get_daily_activity(start_date, end_date)
 
