@@ -10,6 +10,8 @@ from typing import Dict, List, Optional, Tuple
 from statistics import mean, stdev
 from enum import Enum
 
+from .resting_hr import extract_resting_hr_values
+
 
 class IllnessRiskLevel(Enum):
     """Risk levels for illness detection."""
@@ -146,7 +148,7 @@ class IllnessDetector:
             signals.append(hrv_signal)
 
         # 3. Resting heart rate
-        rhr_signal = self._check_resting_hr(recent_readiness, baselines)
+        rhr_signal = self._check_resting_hr(recent_sleep, baselines)
         if rhr_signal:
             signals.append(rhr_signal)
 
@@ -209,13 +211,10 @@ class IllnessDetector:
             baselines['hrv'] = mean(hrv_values)
             baselines['hrv_std'] = stdev(hrv_values) if len(hrv_values) > 1 else 0
 
-        # Resting HR baseline
-        rhr_values = []
-        for day in readiness_data:
-            contributors = day.get('contributors', {})
-            rhr = contributors.get('resting_heart_rate')
-            if rhr is not None:
-                rhr_values.append(rhr)
+        # Resting HR baseline — real bpm from the nightly trough.
+        # ⛔ NOT readiness.contributors.resting_heart_rate: that is a 0-100 score
+        # (higher = better) which saturates at 100 and hides deterioration.
+        rhr_values = extract_resting_hr_values(sleep_data)
 
         if rhr_values:
             baselines['resting_hr'] = mean(rhr_values)
@@ -336,34 +335,29 @@ class IllnessDetector:
 
     def _check_resting_hr(
         self,
-        recent_data: List[Dict],
+        sleep_data: List[Dict],
         baselines: Dict
     ) -> Optional[IllnessSignal]:
-        """
-        Check for elevated resting heart rate.
+        """Check for an elevated resting heart rate, in real bpm.
 
-        Note: Uses RHR score from readiness contributors (0-100 scale),
-        not absolute BPM values. Lower score = elevated HR.
+        Before v0.9.1 this used the readiness RHR *score* and inverted the
+        comparison to compensate. That was directionally right but numerically
+        wrong twice over: the thresholds below are documented in bpm, and the
+        score saturates at 100, so a deterioration starting from a healthy pulse
+        barely moves it. Real bpm has no ceiling.
         """
         if 'resting_hr' not in baselines:
             return None
 
-        recent_rhrs = []
-        for day in recent_data:
-            contributors = day.get('contributors', {})
-            rhr_score = contributors.get('resting_heart_rate')
-            if rhr_score is not None:
-                recent_rhrs.append(rhr_score)
-
+        recent_rhrs = extract_resting_hr_values(sleep_data)
         if not recent_rhrs:
             return None
 
         avg_recent = mean(recent_rhrs)
         baseline = baselines['resting_hr']
 
-        # For RHR score: LOWER score = elevated HR (inverse relationship)
-        # So we check for score DROP, not increase
-        deviation = baseline - avg_recent  # Inverted: baseline - recent
+        # A HIGHER pulse is the illness signal.
+        deviation = avg_recent - baseline
 
         thresholds = self.THRESHOLDS['resting_hr_increase']
         severity = 0
@@ -382,7 +376,7 @@ class IllnessDetector:
                 value=avg_recent,
                 baseline=baseline,
                 deviation=deviation,
-                message=f"RHR score {deviation:+.0f} points below baseline (elevated HR)"
+                message=f"Resting HR {avg_recent:.0f}bpm, {deviation:+.1f}bpm above baseline"
             )
 
         return None

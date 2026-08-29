@@ -9,6 +9,8 @@ from ..utils.sleep_debt import SleepDebtTracker
 from ..utils.supplement_correlation import SupplementCorrelation
 from ..utils.sleep_aggregation import aggregate_sleep_sessions_by_day
 
+from ..utils.resting_hr import extract_resting_hr_values
+
 
 class AnalyticsToolProvider:
     """Provides statistical analytics tools for health data."""
@@ -33,6 +35,9 @@ class AnalyticsToolProvider:
 
         # Gather all data
         sleep_data = await self.oura_client.get_daily_sleep(start_date, end_date)
+        # ⚠️ daily_sleep carries scores only. The resting heart rate lives in the
+        # detailed sleep sessions, so fetch those too rather than reporting a score.
+        sleep_sessions = await self.oura_client.get_sleep(start_date, end_date)
         readiness_data = await self.oura_client.get_daily_readiness(start_date, end_date)
         activity_data = await self.oura_client.get_daily_activity(start_date, end_date)
 
@@ -46,7 +51,7 @@ class AnalyticsToolProvider:
 
         # Readiness Statistics
         if readiness_data:
-            result += await self._analyze_readiness_statistics(readiness_data)
+            result += await self._analyze_readiness_statistics(readiness_data, sleep_sessions)
 
         # Activity Statistics
         if activity_data:
@@ -112,7 +117,11 @@ class AnalyticsToolProvider:
         result += "---\n\n"
         return result
 
-    async def _analyze_readiness_statistics(self, data: List[Dict[str, Any]]) -> str:
+    async def _analyze_readiness_statistics(
+        self,
+        data: List[Dict[str, Any]],
+        sleep_data: List[Dict[str, Any]] | None = None,
+    ) -> str:
         """Analyze readiness data statistics."""
         result = "## 🎯 Readiness Statistics\n\n"
 
@@ -123,11 +132,10 @@ class AnalyticsToolProvider:
             for d in data
             if d.get("contributors", {}).get("hrv_balance") is not None
         ]
-        rhr_values = [
-            d.get("contributors", {}).get("resting_heart_rate")
-            for d in data
-            if d.get("contributors", {}).get("resting_heart_rate") is not None
-        ]
+        # ⛔ NOT contributors.resting_heart_rate — that is a 0-100 score, not bpm.
+        # Reported as "bpm" until v0.9.1, which put a median of 97 "bpm" in the
+        # report while the real resting pulse was 61.
+        rhr_values = extract_resting_hr_values(sleep_data or [])
         temp_values = [
             d.get("contributors", {}).get("body_temperature")
             for d in data
@@ -153,7 +161,7 @@ class AnalyticsToolProvider:
         if rhr_values:
             stats = self._calculate_statistics(rhr_values)
             result += f"### Resting Heart Rate\n"
-            result += self._format_stats_table(stats, "bpm (score)")
+            result += self._format_stats_table(stats, "bpm")
             result += "\n"
 
         if temp_values:
