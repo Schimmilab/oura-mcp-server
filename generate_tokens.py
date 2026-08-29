@@ -84,7 +84,7 @@ async def main() -> int:
     ]
     if missing:
         print(f"⛔ Missing in .env: {', '.join(missing)}")
-        print("   Register an application at https://cloud.ouraring.com/oauth/applications")
+        print("   Register an application at https://developer.ouraring.com/applications")
         return 2
 
     parsed = urlparse(auth.redirect_uri)
@@ -103,7 +103,7 @@ async def main() -> int:
         probe.close()
         print(f"⛔ Port {port} is already in use — the callback would go to that")
         print("   process instead of here. Free the port, or register a redirect URI")
-        print("   on a free port in https://cloud.ouraring.com/oauth/applications")
+        print("   on a free port in https://developer.ouraring.com/applications")
         print(f"   and set OURA_REDIRECT_URI in .env to match it exactly.")
         return 2
     probe.close()

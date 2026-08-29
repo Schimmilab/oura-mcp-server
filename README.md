@@ -95,15 +95,93 @@ oura-mcp-server/
 ### Prerequisites
 - Python 3.10+ (or Docker)
 - Oura Ring with API access
-- Personal Access Token from [Oura Cloud](https://cloud.ouraring.com/personal-access-tokens)
+- An OAuth2 application — see **Authentication** below
+
+## Authentication (OAuth2)
+
+> ⚠️ **Personal Access Tokens are deprecated.** Oura stopped issuing new ones in
+> August 2026; existing tokens keep working for a while but will be switched off.
+> This server uses the OAuth2 authorization code flow.
+
+### 1. Register an application
+
+Go to **https://developer.ouraring.com/applications** and create one.
+
+| Field | What to put |
+|---|---|
+| Display Name | anything, e.g. `Oura MCP Server` |
+| Description | e.g. `Self-hosted MCP server for my own Oura data` |
+| Contact Email | your address |
+| Website | your repo or homepage URL |
+| Privacy Policy | a reachable URL — this repo's [PRIVACY.md](PRIVACY.md) works |
+| Terms of Service | likewise [TERMS.md](TERMS.md) |
+| **Redirect URIs** | **`http://localhost:8080/callback`** |
+| Scopes | tick what you need — see the note below |
+
+**On scopes:** this server never sends a `scope` parameter, because Oura grants
+every scope the application is registered with when it is left blank. That keeps
+the scope list in one place — the portal — instead of hard-coded where it can
+drift out of sync. Tick `personal`, `daily`, `heartrate`, `workout`, `tag`,
+`session`, `spo2` and ring configuration; `email` is not used by any tool.
+
+💡 **Add a second redirect URI on a spare port** (e.g. `http://localhost:8321/callback`)
+while you are there. Port 8080 is popular, and if something else is listening
+when you re-authorize, the callback silently goes to that process instead. With a
+second URI registered you just change `OURA_REDIRECT_URI` instead of hunting down
+whatever holds the port.
+
+### 2. Put the credentials in `.env`
+
+```bash
+OURA_CLIENT_ID=...
+OURA_CLIENT_SECRET=...
+OURA_REDIRECT_URI=http://localhost:8080/callback
+```
+
+`.env` is git-ignored. Keep the credentials **only here** — a second copy in an
+MCP client config will shadow this file, because `load_dotenv` does not override
+variables that are already set in the environment.
+
+### 3. Authorize once
+
+```bash
+python generate_tokens.py
+```
+
+This opens the Oura consent screen, catches the redirect on a local HTTP server,
+exchanges the code and writes `OURA_ACCESS_TOKEN` and `OURA_REFRESH_TOKEN` into
+`.env` with mode 600. It then makes a real API call and tells you whether it
+worked — a green message here means data actually came back, not just that a file
+was written.
+
+If the port is taken, the script says so and stops instead of letting the callback
+disappear into another process.
+
+### How tokens are kept alive
+
+Access tokens are refreshed automatically. A `401` from the API triggers one
+refresh and one retry; a second `401` means the credentials are dead rather than
+stale, and the error tells you to re-run `generate_tokens.py`.
+
+⛔ **Oura refresh tokens are single-use** — each refresh invalidates the previous
+one. Two consequences the implementation handles for you:
+
+- **Refreshes are serialized with a file lock** (`.env.lock`). Several server
+  processes can run at once (one per client session, plus any cron jobs); without
+  the lock two of them would spend the same single-use token and one would be left
+  with a dead credential. Inside the lock the stored tokens are re-read first, so a
+  rotation another process just completed is adopted instead of duplicated.
+- **The new pair is written atomically** (temp file + `os.replace`). A crash
+  mid-write would otherwise truncate the only copy of the new refresh token and
+  force a manual re-authorization.
+
+If you ever do end up locked out, `python generate_tokens.py` is always the way
+back.
 
 ### Option 1: Docker (Recommended)
 
 ```bash
-# Set your token
-export OURA_ACCESS_TOKEN="your_token_here"
-
-# Start with Docker Compose
+# Credentials come from .env (see Authentication above)
 docker-compose up -d
 
 # View logs
@@ -118,8 +196,8 @@ docker-compose logs -f
 # Install dependencies
 pip install -r requirements.txt
 
-# Configure your Oura token
-export OURA_ACCESS_TOKEN="your_token_here"
+# Authorize once (see Authentication above)
+python generate_tokens.py
 
 # Run the server
 python main.py
@@ -132,7 +210,11 @@ Copy `config/config.example.yaml` to `config/config.yaml` and customize:
 ```yaml
 oura:
   api:
+    # Resolved from .env — see Authentication above
+    client_id: "${OURA_CLIENT_ID}"
+    client_secret: "${OURA_CLIENT_SECRET}"
     access_token: "${OURA_ACCESS_TOKEN}"
+    refresh_token: "${OURA_REFRESH_TOKEN}"
   cache:
     enabled: true
     ttl_seconds: 3600
