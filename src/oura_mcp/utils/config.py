@@ -92,7 +92,7 @@ class LoggingConfig(BaseModel):
     """Logging configuration."""
     level: str = "INFO"
     format: str = "json"  # json | text
-    output: str = "stdout"  # stdout | file
+    output: str = "stderr"  # stderr | stdout | file
     file_path: Optional[str] = "./logs/oura_mcp.log"
 
 
