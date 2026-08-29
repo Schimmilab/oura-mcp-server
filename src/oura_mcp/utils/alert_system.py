@@ -164,6 +164,33 @@ class AlertSystem:
         """
         alerts = []
 
+        # ── Coverage check ──────────────────────────────────────────────────
+        # ⛔ A check with no data to look at reports "no alert", which reads
+        # exactly like "all clear". That is how the sleep-score checks stayed
+        # silent for months: the detailed sessions carry no score, so they
+        # iterated over an empty list every time.
+        #
+        # Record what could not be evaluated, so the report can say "not
+        # measured" instead of implying "fine".
+        self.skipped_checks = []
+
+        def _have(rows, field):
+            return sum(
+                1 for r in rows
+                if isinstance(r, dict) and r.get(field) is not None
+            )
+
+        if sleep_data and not _have(sleep_data, "score"):
+            self.skipped_checks.append(
+                "sleep quality / consecutive bad nights — no sleep score in the "
+                f"data ({len(sleep_data)} nights present, 0 scored)"
+            )
+        if sleep_data and not _have(sleep_data, "lowest_heart_rate"):
+            self.skipped_checks.append(
+                "resting heart rate — no lowest_heart_rate in the data "
+                f"({len(sleep_data)} nights present, 0 with a pulse)"
+            )
+
         # Sleep alerts
         alerts.extend(self._check_sleep_quality_alerts(sleep_data))
         alerts.extend(self._check_sleep_duration_alerts(sleep_data))
@@ -728,6 +755,16 @@ class AlertSystem:
         slope = numerator / denominator
         return slope
 
+    def _format_skipped(self) -> str:
+        """Name the checks that could not run, so silence is not read as health."""
+        skipped = getattr(self, "skipped_checks", [])
+        if not skipped:
+            return ""
+        lines = ["\n## ⚠️ Checks that could not run\n",
+                 "*These were skipped for missing data — not evaluated, not cleared.*\n"]
+        lines += [f"- {item}\n" for item in skipped]
+        return "".join(lines)
+
     def format_alerts_report(self, alerts: List[HealthAlert]) -> str:
         """Generate human-readable alerts report."""
         if not alerts:
@@ -823,4 +860,4 @@ class AlertSystem:
             ""
         ])
 
-        return "\n".join(lines)
+        return "\n".join(lines) + self._format_skipped()

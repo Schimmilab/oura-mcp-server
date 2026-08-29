@@ -233,3 +233,43 @@ def format_aggregation_summary(aggregated_session: Dict) -> str:
             lines.append(f"  {i}. {duration:.1f}h ({session_type})")
 
     return "\n".join(lines)
+
+
+def merge_daily_sleep_scores(
+    aggregated: List[Dict],
+    daily_sleep: List[Dict],
+) -> List[Dict]:
+    """Attach the daily sleep score to aggregated sleep sessions.
+
+    ⛔ Why this is needed: ``/v2/usercollection/sleep`` (the detailed sessions)
+    carries durations, efficiency and heart rate but **no score** — that lives in
+    ``/v2/usercollection/daily_sleep``. Code that aggregated sessions and then
+    read ``session['score']`` got ``None`` every single night.
+
+    That failed silently. Every sleep-score check simply had nothing to iterate
+    over and reported "no alert", which reads exactly like "all clear":
+
+    - ``alert_system._check_sleep_quality_alerts`` — never fired
+    - ``alert_system._check_consecutive_bad_nights`` — never fired
+    - the weekly report printed "Sleep Score 0/100" and dragged the weekly
+      total down with it
+
+    Measured on 30 real nights: 0/30 sessions had a score; the same nights via
+    daily_sleep ranged 54-86.
+    """
+    scores_by_day = {
+        entry.get("day"): entry.get("score")
+        for entry in daily_sleep
+        if isinstance(entry, dict) and entry.get("day")
+    }
+
+    merged = []
+    for session in aggregated:
+        if not isinstance(session, dict):
+            continue
+        if session.get("score") is None:
+            score = scores_by_day.get(session.get("day"))
+            if score is not None:
+                session = {**session, "score": score}
+        merged.append(session)
+    return merged
