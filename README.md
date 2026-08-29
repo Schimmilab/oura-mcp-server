@@ -4,53 +4,87 @@ A Model Context Protocol (MCP) server that provides AI assistants with structure
 
 ## Features
 
-### 📊 Raw HRV Data Access (v0.7.0) ✅
-- **Raw HRV Trend**: `get_hrv_trend` — retrieves `average_hrv` in real milliseconds from the detailed sleep endpoint (not score-based), with resting HR (lowest nightly value), sleep stages, and automatic trend analysis across configurable time windows (NEW in v0.7.0)
+**30 tools** across data access, analysis, prediction and reporting. Every name below is registered in the running server — the list is generated from `core/server.py`, not maintained by hand.
 
-## Features
+### 📥 Data access
 
-### 🍽️ Nutrition Intelligence (v0.6.0) ✅
-- **Calorie Needs Prediction**: 7-day TDEE forecasts based on activity patterns (NEW in v0.6.0)
-- **Flexible Macro Planning**: Choose from 9 nutrition styles OR set custom carb limits (NEW in v0.6.0)
-- **BMR & TDEE Calculation**: Mifflin-St Jeor formula with Oura activity integration (NEW in v0.6.0)
-- **Weekly Pattern Analysis**: Day-of-week calorie expenditure patterns (NEW in v0.6.0)
-- **Personalized Recommendations**: Protein/carb/fat targets based on your approach (NEW in v0.6.0)
+| Tool | What it returns |
+|---|---|
+| `get_sleep_sessions` | Detailed sessions with exact times and durations, including naps and couch sleep |
+| `get_raw_sleep_data` | Raw sleep payload for debugging |
+| `get_heart_rate_data` | Time-series heart rate with zones and activity breakdown |
+| `get_hrv_trend` | Raw HRV in **milliseconds** (`average_hrv`), not the score — plus resting HR and sleep stages |
+| `get_workout_sessions` | Workout and activity sessions with HR data and metrics |
+| `get_daily_stress` | Stress levels, stress load and recovery time |
+| `get_daily_resilience` | Long-term stress-recovery balance and its contributors |
+| `get_daily_cardiovascular_age` | Estimated vascular age |
+| `get_spo2_data` | Blood oxygen saturation trends |
+| `get_vo2_max` | Cardiorespiratory fitness estimates |
+| `get_sleep_time` | Optimal bedtime window and recommendation |
+| `get_rest_mode_periods` | User-activated recovery mode |
+| `get_tags` / `get_enhanced_tags` | User notes; enhanced adds time ranges and comments |
+| `get_ring_configuration` | Hardware: colour, design, firmware, size |
 
-### 🧠 Health Intelligence (v0.5.0) ✅
-- **Chronotype Analysis**: MSF-based classification (Night Owl, Morning Lark) with personalized recommendations
-- **Personalized Sleep Need**: Auto-detection via readiness correlation - no more one-size-fits-all 8h target
-- **Analytics**: Comprehensive statistical reports with correlations and trend detection
-- **Predictions**: 7-day forecasts for sleep, readiness, and activity with ensemble learning
-- **Sleep Optimization**: Optimal bedtime calculator and personalized sleep debt tracking
-- **Supplement Analysis**: Correlation tracking between supplements and health metrics
-- **Illness Detection**: Multi-signal early warning system (1-2 day advance notice)
-- **Health Alerts**: Automated monitoring with personalized, adaptive thresholds
-- **Weekly Reports**: Comprehensive summaries with week-over-week comparisons
-- **Recovery Detection**: Multi-signal recovery assessment with weighted scoring
-- **Training Readiness**: Sport-specific recommendations (general, endurance, strength, HIIT)
-- **Anomaly Detection**: Statistical detection of concerning patterns
+### 🧠 Analysis
 
-### 📊 Data Access Tools (v0.3.0+) ✅
-- **Detailed Sleep Sessions**: Exact sleep/wake times, biphasic/polyphasic tracking
-- **Heart Rate Monitoring**: Time-series data with HR zones and activity breakdown
-- **Workout Sessions**: Complete workout history with metrics
-- **Stress & Recovery**: Daily stress levels and recovery time tracking
-- **SpO2 Monitoring**: Blood oxygen saturation trends
-- **VO2 Max**: Cardiorespiratory fitness estimates
-- **User Tags**: Custom notes and activity tracking
+| Tool | What it does |
+|---|---|
+| `analyze_sleep_trend` | Sleep patterns over a chosen period |
+| `analyze_sleep_debt` | Accumulated debt with severity and recovery advice |
+| `analyze_chronotype` | Morning lark / night owl / intermediate, from sleep timing |
+| `analyze_supplement_correlation` | Which tagged supplements and interventions actually moved the metrics |
+| `correlate_metrics` | Correlation between any two metrics |
+| `detect_anomalies` | Statistical outliers in recent data |
+| `detect_illness_risk` | Multi-signal early warning (temperature, HRV, resting HR, respiratory rate) |
+| `detect_recovery_status` | Recovery state from several physiological signals |
+| `assess_training_readiness` | Readiness for a specific training type |
+| `check_health_alerts` | Critical alerts and warnings from recent metrics and trends |
+| `calculate_optimal_bedtime` | Derived from your own best nights |
 
-### 🏥 Health Resources (v0.2.0+) ✅
-- **Sleep Analysis**: Detailed sleep stages, efficiency, scores
-- **Readiness Metrics**: HRV, temperature, recovery indicators
-- **Activity Tracking**: Steps, calories, activity scores
-- **HRV Insights**: Baseline comparison and trend detection
-- **Personal Info**: Age, weight, height, biological sex
+### 🔮 Prediction
 
-### 🔧 Core Features ✅
-- **Modular Architecture**: Clean separation of concerns (v0.3.1)
-- **Smart Caching**: Respects Oura API rate limits
-- **Privacy Controls**: Configurable access levels and audit logging
-- **Comprehensive Testing**: 100% test coverage for all features
+| Tool | What it forecasts |
+|---|---|
+| `predict_sleep_quality` | Upcoming nights, via trend / moving average / weekly pattern |
+| `predict_readiness` | Readiness scores and training recommendations |
+| `predict_calorie_needs` | TDEE with macro recommendations across 9 nutrition styles or a custom carb limit |
+
+### 📄 Reports
+
+| Tool | Output |
+|---|---|
+| `generate_daily_brief` | Daily health brief |
+| `generate_weekly_report` | Weekly report with trends, highlights and week-over-week comparison |
+| `generate_statistics_report` | Statistical analysis with trends and patterns |
+
+### 🏥 Health resources
+
+Sleep analysis, readiness metrics, activity tracking, HRV insights and personal info are also exposed as MCP **resources**, not just tools.
+
+### 🔧 Core
+
+- **OAuth2** with automatic token refresh — Oura refresh tokens are single-use, so rotation is serialised with a file lock and written atomically (see [Authentication](#authentication-oauth2))
+- **Modular architecture**: API layer, tools, resources and utilities are separated
+- **Smart caching** that respects Oura API rate limits
+- **Privacy controls**: configurable access levels and audit logging
+- **Tests**: 27 unit tests covering the token lifecycle and resting-heart-rate handling. Three live smoke scripts against the real API are run manually — see `tests/conftest.py`. Coverage is **not** complete; the analysis and prediction layers are largely untested.
+
+### Version history
+
+| Version | What it brought |
+|---|---|
+| **v0.9.3** | Sleep score never reached the checks that needed it — two alerts could never fire. Alerts now report checks they had to skip |
+| **v0.9.2** | Three more surfaces still printed the resting-HR score as bpm |
+| **v0.9.1** | Resting-HR alarm was inverted: it fired on recovery and stayed silent during illness |
+| **v0.9.0** | OAuth2 migration (Oura deprecated Personal Access Tokens) + three silent API bugs |
+| **v0.8.0** | Complete Oura v2 user-data coverage: resilience, cardiovascular age, sleep time, rest mode, enhanced tags, ring configuration |
+| **v0.7.0** | Raw HRV in milliseconds via `get_hrv_trend` |
+| **v0.6.0** | Nutrition intelligence: TDEE forecasting and macro planning |
+| **v0.5.0** | Health intelligence: chronotype, illness detection, alerts, predictions |
+| **v0.3.0** | Data access tools and modular architecture |
+| **v0.2.0** | Health resources |
+
+Full notes for every release: https://github.com/Schimmilab/oura-mcp-server/releases
 
 ## Project Structure
 
@@ -290,14 +324,14 @@ Add to your Claude config (`~/Library/Application Support/Claude/claude_desktop_
 ## Development
 
 ```bash
-# Run all tests
-python3 tests/test_advanced_features.py
+# Run the unit test suite
+python3 -m pytest tests/ -q
 
-# Run API tests
+# Live smoke scripts — these hit the real Oura API and need working
+# credentials, so they are excluded from the suite and run by hand
 python3 tests/test_api.py
-
-# Run server tests
 python3 tests/test_server.py
+python3 tests/test_advanced_features.py
 
 # Run with debug logging
 python main.py --log-level debug
@@ -334,6 +368,12 @@ ruff check src/
 - [x] **v0.4.0**: Health intelligence platform (analytics, predictions, illness detection) ✅ **2026-01-17**
 - [x] **v0.5.0**: Personalized health insights (chronotype, adaptive thresholds) ✅ **2026-01-17**
 - [x] **v0.6.0**: Nutrition intelligence & calorie forecasting ✅ **2026-01-18**
+- [x] **v0.7.0**: Raw HRV access in milliseconds ✅ **2026-05-15**
+- [x] **v0.8.0**: Complete Oura v2 user-data coverage ✅ **2026-07-09**
+- [x] **v0.9.0**: OAuth2 migration — Oura deprecated Personal Access Tokens ✅ **2026-08-29**
+- [x] **v0.9.1 – v0.9.3**: Resting-heart-rate and sleep-score corrections ✅ **2026-08-29**
+- [ ] **Next**: CI on push (there is none yet), and a sleep-consistency metric that
+      does not floor at 0 for ordinary variation
 
 ## License
 
