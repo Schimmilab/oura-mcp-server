@@ -79,8 +79,8 @@ Complete documentation for the Oura MCP Server.
 
 ### Installation & Setup
 1. [Main README](../README.md) - Quick start
-2. [SETUP.md](../SETUP.md) - Detailed setup
-3. [CLAUDE_DESKTOP_SETUP.md](../CLAUDE_DESKTOP_SETUP.md) - Claude integration
+2. [SETUP.md](SETUP.md) - Detailed setup
+3. [CLAUDE_DESKTOP_SETUP.md](CLAUDE_DESKTOP_SETUP.md) - Claude integration
 4. [Configuration](MCP_DESIGN.md#configuration-schema) - config.yaml reference
 
 ### Using the Server
@@ -134,7 +134,7 @@ Root Directory:
 ### I want to...
 
 **...get started quickly**
-→ [Main README](../README.md) → [SETUP.md](../SETUP.md)
+→ [Main README](../README.md) → [SETUP.md](SETUP.md)
 
 **...use the new intelligence features**
 → [Phase 2 Quick Start](PHASE2_QUICKSTART.md)
@@ -161,7 +161,7 @@ Root Directory:
 → [Release Notes](https://github.com/Schimmilab/oura-mcp-server/releases)
 
 **...integrate with Claude Desktop**
-→ [Claude Desktop Setup](../CLAUDE_DESKTOP_SETUP.md)
+→ [Claude Desktop Setup](CLAUDE_DESKTOP_SETUP.md)
 
 ---
 

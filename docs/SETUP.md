@@ -257,11 +257,11 @@ If you hit limits, the server will automatically slow down.
 1. **Test resources**: Query your sleep, readiness, and activity data
 2. **Try tools**: Use analysis tools for insights
 3. **Customize**: Adjust config for your needs
-4. **Extend**: Add custom resources or tools (see [docs/MCP_DESIGN.md](docs/MCP_DESIGN.md))
+4. **Extend**: Add custom resources or tools (see [MCP_DESIGN.md](MCP_DESIGN.md))
 
 ## 🆘 Getting Help
 
-- **Documentation**: See [docs/](docs/) folder
+- **Documentation**: See the [docs/](.) folder
 - **API Reference**: [Oura API Docs](https://cloud.ouraring.com/v2/docs)
 - **MCP Protocol**: [Model Context Protocol](https://modelcontextprotocol.io)
 
