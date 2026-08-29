@@ -62,7 +62,7 @@ Complete documentation for the Oura MCP Server.
   - How to report bugs
   - Future improvements planned
 
-- **[Release Notes](RELEASE_NOTES.md)** ⭐ NEW
+- **[Release Notes](https://github.com/Schimmilab/oura-mcp-server/releases)** — on GitHub, one entry per release
   - Version history
   - Feature releases
   - Breaking changes
@@ -112,7 +112,7 @@ docs/
 ├── OURA_API_RESEARCH.md           # Oura API documentation
 ├── PHASE2_QUICKSTART.md           # Phase 2 user guide (NEW)
 ├── IMPLEMENTATION_SUMMARY.md      # Phase 2 technical docs (NEW)
-├── RELEASE_NOTES.md               # Version history (NEW)
+│                                  # (version history lives in GitHub Releases)
 ├── BUGFIXES.md                    # Bug tracking (NEW)
 └── TEST_RESULTS.md                # Test validation
 
@@ -158,7 +158,7 @@ Root Directory:
 → [Bug Reporting Guide](BUGFIXES.md#reporting-bugs)
 
 **...see what's new**
-→ [Release Notes](RELEASE_NOTES.md)
+→ [Release Notes](https://github.com/Schimmilab/oura-mcp-server/releases)
 
 **...integrate with Claude Desktop**
 → [Claude Desktop Setup](../CLAUDE_DESKTOP_SETUP.md)

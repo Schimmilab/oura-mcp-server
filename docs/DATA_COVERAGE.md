@@ -211,7 +211,7 @@ Resources are read-only data endpoints that Claude can access directly.
 - [Phase 2 Quick Start](PHASE2_QUICKSTART.md) - Intelligence features guide
 - [MCP Design](MCP_DESIGN.md) - Architecture and design
 - [Oura API Research](OURA_API_RESEARCH.md) - API documentation
-- [Release Notes](../releases/) - Version history
+- [Release Notes](https://github.com/Schimmilab/oura-mcp-server/releases) - Version history
 
 ---
 

@@ -527,7 +527,7 @@ A: Statistical anomalies ≠ subjective feeling. Trust your body. The tool detec
 - **API Design:** [MCP_DESIGN.md](MCP_DESIGN.md)
 - **Oura API Info:** [OURA_API_RESEARCH.md](OURA_API_RESEARCH.md)
 - **Test Results:** [TEST_RESULTS.md](TEST_RESULTS.md)
-- **Release Notes:** [RELEASE_NOTES.md](RELEASE_NOTES.md)
+- **Release Notes:** https://github.com/Schimmilab/oura-mcp-server/releases
 - **Bug Fixes:** [BUGFIXES.md](BUGFIXES.md)
 
 ---

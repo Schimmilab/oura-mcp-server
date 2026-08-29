@@ -212,8 +212,8 @@ Developed using Claude Code and real Oura Ring data.
 
 ## Quick Links
 
-- **[Phase 2 Quick Start Guide](PHASE2_QUICKSTART.md)** - Get started with new features
-- **[Implementation Summary](IMPLEMENTATION_SUMMARY.md)** - Detailed technical documentation
-- **[MCP Design](MCP_DESIGN.md)** - Architecture documentation
-- **[Bug Fixes](BUGFIXES.md)** - Known issues and fixes
-- **[Test Results](TEST_RESULTS.md)** - Validation results
+- **[Phase 2 Quick Start Guide](../PHASE2_QUICKSTART.md)** - Get started with new features
+- **[Implementation Summary](../IMPLEMENTATION_SUMMARY.md)** - Detailed technical documentation
+- **[MCP Design](../MCP_DESIGN.md)** - Architecture documentation
+- **[Bug Fixes](../BUGFIXES.md)** - Known issues and fixes
+- **[Test Results](../TEST_RESULTS.md)** - Validation results

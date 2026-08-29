@@ -311,13 +311,10 @@ ruff check src/
 
 ## Documentation
 
-- **[v0.6.0 Release Notes](releases/v0.6.0_RELEASE_NOTES.md)** - Nutrition intelligence & calorie forecasting (NEW)
-- **[v0.5.0 Release Notes](releases/v0.5.0_RELEASE_NOTES.md)** - Personalized health insights
-- **[v0.4.0 Release Notes](releases/v0.4.0_RELEASE_NOTES.md)** - Complete v0.4.0 documentation
+- **[Release Notes](https://github.com/Schimmilab/oura-mcp-server/releases)** - Version history, one entry per release
 - **[Phase 2 Quick Start Guide](docs/PHASE2_QUICKSTART.md)** - User guide for intelligence features
 - **[Implementation Summary](docs/IMPLEMENTATION_SUMMARY.md)** - Complete Phase 2 documentation
 - **[MCP Design](docs/MCP_DESIGN.md)** - Architecture and design documentation
-- **[Release Notes](docs/RELEASE_NOTES.md)** - Version history and changelog
 - **[Bug Fixes](docs/BUGFIXES.md)** - Known issues and fixes
 - **[Oura API Research](docs/OURA_API_RESEARCH.md)** - API documentation
 - **[Test Results](docs/TEST_RESULTS.md)** - Test validation results
