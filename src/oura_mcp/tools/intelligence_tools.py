@@ -10,7 +10,10 @@ from ..utils.anomalies import AnomalyDetector
 from ..utils.interpretation import InterpretationEngine
 from ..utils.bedtime_calculator import BedtimeCalculator
 from ..utils.alert_system import AlertSystem
-from ..utils.sleep_aggregation import aggregate_sleep_sessions_by_day
+from ..utils.sleep_aggregation import (
+    aggregate_sleep_sessions_by_day,
+    merge_daily_sleep_scores,
+)
 from ..utils.illness_detection import IllnessDetector
 from ..utils.chronotype_analysis import ChronotypeAnalyzer
 
@@ -393,8 +396,13 @@ class IntelligenceToolProvider:
         readiness_data = await self.oura_client.get_daily_readiness(start_date, end_date)
         activity_data = await self.oura_client.get_daily_activity(start_date, end_date)
 
-        # Aggregate biphasic/multiple sleep sessions per day
-        sleep_data = aggregate_sleep_sessions_by_day(sleep_sessions)
+        # Aggregate biphasic/multiple sleep sessions per day, then attach the
+        # daily sleep score — the detailed sessions do not carry one, so the
+        # score-based checks would silently have nothing to look at.
+        daily_sleep = await self.oura_client.get_daily_sleep(start_date, end_date)
+        sleep_data = merge_daily_sleep_scores(
+            aggregate_sleep_sessions_by_day(sleep_sessions), daily_sleep
+        )
 
         # Calculate personal sleep need for accurate thresholds
         from ..utils.sleep_debt import SleepDebtTracker

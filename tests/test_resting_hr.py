@@ -146,3 +146,54 @@ def test_weekly_report_without_sleep_data_reports_nothing_rather_than_a_score():
     ]
     metrics = WeeklyReportGenerator()._analyze_readiness_metrics(readiness, None)
     assert metrics["avg_resting_hr"] == 0, "no sleep data must not fall back to the score"
+
+
+# ---------------------------------------------------- sleep score availability
+
+def test_daily_scores_are_merged_onto_sessions():
+    """Detailed sleep sessions carry no score; daily_sleep does."""
+    from oura_mcp.utils.sleep_aggregation import merge_daily_sleep_scores
+
+    merged = merge_daily_sleep_scores(
+        [{"day": "2026-08-28", "score": None}, {"day": "2026-08-29", "score": None}],
+        [{"day": "2026-08-28", "score": 72}, {"day": "2026-08-29", "score": 70}],
+    )
+    assert [d["score"] for d in merged] == [72, 70]
+
+
+def test_missing_daily_data_leaves_score_none_rather_than_zero():
+    """A zero would look like the worst night on record."""
+    from oura_mcp.utils.sleep_aggregation import merge_daily_sleep_scores
+
+    merged = merge_daily_sleep_scores([{"day": "2026-08-28", "score": None}], [])
+    assert merged[0]["score"] is None
+
+
+def test_missing_score_is_reported_as_not_measured_not_as_healthy():
+    """⛔ The failure mode this guards: a check with no data says 'no alert'.
+
+    That is indistinguishable from 'all clear'. It is how the sleep-score checks
+    stayed silent across 30 nights without anyone noticing.
+    """
+    from oura_mcp.utils.alert_system import AlertSystem
+
+    system = AlertSystem()
+    blind = [{"day": f"2026-08-{i + 1:02d}", "total_sleep_duration": 25000} for i in range(10)]
+    system.check_all_alerts(blind, [], [], 7)
+    note = system._format_skipped()
+    assert "sleep quality" in note
+    assert "resting heart rate" in note
+
+
+def test_complete_data_reports_no_gaps():
+    """Positive control: the coverage note must not cry wolf."""
+    from oura_mcp.utils.alert_system import AlertSystem
+
+    system = AlertSystem()
+    complete = [
+        {"day": f"2026-08-{i + 1:02d}", "score": 70, "lowest_heart_rate": 60,
+         "total_sleep_duration": 25000}
+        for i in range(10)
+    ]
+    system.check_all_alerts(complete, [], [], 7)
+    assert system._format_skipped() == ""
