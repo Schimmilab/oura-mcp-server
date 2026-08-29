@@ -192,38 +192,50 @@ class DataToolProvider:
             else:
                 time_str = "N/A"
 
-            session_type = session.get("type", "Unknown")
+            # ⛔ Field names follow the PublicWorkout schema (openapi 1.37), not the
+            # session schema this renderer was originally written against. Reading
+            # "type" here is why every workout showed up as "Unknown" — the data was
+            # there all along, the renderer just looked in the wrong field.
+            activity = session.get("activity") or "Unknown"
+            label = session.get("label")
+            intensity = session.get("intensity")
 
             result += f"## 📅 {day} at {time_str}\n\n"
-            result += f"**Type:** {session_type}\n\n"
+            heading = activity if not label else f"{activity} — {label}"
+            result += f"**Activity:** {heading}\n"
+            if intensity:
+                result += f"**Intensity:** {intensity}\n"
 
-            # Duration
-            duration_seconds = session.get("total_duration", 0)
-            if duration_seconds:
-                hours = duration_seconds // 3600
-                minutes = (duration_seconds % 3600) // 60
-                if hours > 0:
-                    result += f"**Duration:** {hours}h {minutes}m\n"
-                else:
-                    result += f"**Duration:** {minutes}m\n"
+            # Duration is not a field in PublicWorkout; it is the span between the
+            # two timestamps.
+            end_time = session.get("end_datetime", "")
+            if start_time and end_time:
+                try:
+                    start_dt_full = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+                    end_dt_full = datetime.fromisoformat(end_time.replace("Z", "+00:00"))
+                    minutes_total = int((end_dt_full - start_dt_full).total_seconds() // 60)
+                    if minutes_total > 0:
+                        hours, minutes = divmod(minutes_total, 60)
+                        result += (
+                            f"**Duration:** {hours}h {minutes}m\n" if hours
+                            else f"**Duration:** {minutes}m\n"
+                        )
+                except ValueError:
+                    pass
 
-            # Heart rate metrics
-            avg_hr = session.get("heart_rate", {}).get("average")
-            max_hr = session.get("heart_rate", {}).get("maximum")
-            if avg_hr:
-                result += f"**Avg HR:** {avg_hr} bpm\n"
-            if max_hr:
-                result += f"**Max HR:** {max_hr} bpm\n"
-
-            # Calories
-            calories = session.get("calories", 0)
+            # Calories arrive as a float with full machine precision; whole
+            # kilocalories are the only meaningful resolution here.
+            calories = session.get("calories")
             if calories:
-                result += f"**Calories:** {calories} kcal\n"
+                result += f"**Calories:** {round(calories)} kcal\n"
 
-            # Distance (if available)
-            distance = session.get("distance", 0)
+            distance = session.get("distance")
             if distance:
                 result += f"**Distance:** {distance / 1000:.2f} km\n"
+
+            source = session.get("source")
+            if source:
+                result += f"**Source:** {source}\n"
 
             result += "\n---\n\n"
 
