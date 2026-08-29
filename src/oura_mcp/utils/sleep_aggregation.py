@@ -109,14 +109,27 @@ def _aggregate_sessions(day: str, sessions: List[Dict]) -> Dict:
             aggregated[field] = total
 
     # Average metrics
+    #
+    # ⛔ A zero is not a measurement here. Short sessions (naps) come back with
+    # average_heart_rate = 0, and averaging that in produced values like 22.6 bpm
+    # from a real 67.8 — a third of the truth, because two of three sessions
+    # contributed a 0. The old guard tested `is not None`, and 0 passes that.
+    #
+    # Fields where 0 is a legitimate value (restlessness can genuinely be 0) keep
+    # counting it; only the physiological rates are guarded.
+    nonzero_only = {'average_heart_rate', 'lowest_heart_rate'}
+
     for field in avg_fields:
         total = 0
         count = 0
         for session in sorted_sessions:
             value = session.get(field)
-            if value is not None:
-                total += value
-                count += 1
+            if value is None:
+                continue
+            if field in nonzero_only and value <= 0:
+                continue
+            total += value
+            count += 1
 
         if count > 0:
             aggregated[field] = total / count

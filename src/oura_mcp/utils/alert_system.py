@@ -10,6 +10,8 @@ from typing import Dict, List, Optional, Tuple
 from statistics import mean, stdev
 from enum import Enum
 
+from .resting_hr import extract_resting_hr_values
+
 
 class AlertSeverity(Enum):
     """Alert severity levels."""
@@ -172,7 +174,7 @@ class AlertSystem:
         # Readiness alerts
         alerts.extend(self._check_readiness_alerts(readiness_data))
         alerts.extend(self._check_hrv_alerts(readiness_data))
-        alerts.extend(self._check_resting_hr_alerts(readiness_data))
+        alerts.extend(self._check_resting_hr_alerts(sleep_data))
 
         # Recovery alerts
         alerts.extend(self._check_overtraining_alerts(readiness_data, activity_data))
@@ -534,31 +536,25 @@ class AlertSystem:
 
         return alerts
 
-    def _check_resting_hr_alerts(self, readiness_data: List[Dict]) -> List[HealthAlert]:
-        """Check for elevated resting heart rate."""
-        alerts = []
+    def _check_resting_hr_alerts(self, sleep_data: List[Dict]) -> List[HealthAlert]:
+        """Alert when the resting heart rate rises above its own baseline.
 
-        if not readiness_data or len(readiness_data) < 7:
-            return alerts
-
-        # Calculate baseline (30-day average if available, else 7-day)
-        resting_hrs = []
-        for day in readiness_data:
-            if not isinstance(day, dict):
-                continue
-
-            contributors = day.get('contributors', {})
-            rhr = contributors.get('resting_heart_rate')
-            if rhr is not None:
-                resting_hrs.append(rhr)
+        ⛔ Until v0.9.1 this read ``readiness.contributors.resting_heart_rate``,
+        which is a 0-100 score where *higher is better* — the exact inverse of a
+        pulse. The alarm therefore fired on recovery and stayed silent during an
+        infection, when a rising pulse drives the score down. It now uses the
+        nightly trough in real bpm; see ``utils/resting_hr``.
+        """
+        alerts: List[HealthAlert] = []
+        resting_hrs = extract_resting_hr_values(sleep_data)
 
         if len(resting_hrs) < 7:
             return alerts
 
         baseline_rhr = mean(resting_hrs[:-3])  # Exclude last 3 days
         recent_rhr = mean(resting_hrs[-3:])  # Last 3 days
-        latest_rhr = resting_hrs[-1]
 
+        # Direction matters: a HIGHER pulse is the warning sign.
         increase = recent_rhr - baseline_rhr
 
         # Critical: Significant elevation
@@ -567,7 +563,7 @@ class AlertSystem:
                 category=AlertCategory.RESTING_HR,
                 severity=AlertSeverity.CRITICAL,
                 title="Elevated Resting Heart Rate",
-                message=f"Resting HR {increase:.0f}bpm above baseline - possible illness or overtraining",
+                message=f"Resting HR {recent_rhr:.0f}bpm, {increase:+.1f}bpm above your {baseline_rhr:.0f}bpm baseline - possible illness or overtraining",
                 metric_value=recent_rhr,
                 threshold=baseline_rhr + self.scaled_thresholds['resting_hr_increase']['critical'],
                 recommendation="Check for illness. Rest from training. Monitor temperature. Consult doctor if persists"
@@ -579,7 +575,7 @@ class AlertSystem:
                 category=AlertCategory.RESTING_HR,
                 severity=AlertSeverity.WARNING,
                 title="Rising Resting Heart Rate",
-                message=f"Resting HR {increase:.0f}bpm above baseline",
+                message=f"Resting HR {recent_rhr:.0f}bpm, {increase:+.1f}bpm above your {baseline_rhr:.0f}bpm baseline",
                 metric_value=recent_rhr,
                 threshold=baseline_rhr + self.scaled_thresholds['resting_hr_increase']['warning'],
                 recommendation="Reduce training load. Monitor for illness signs. Ensure adequate hydration"
