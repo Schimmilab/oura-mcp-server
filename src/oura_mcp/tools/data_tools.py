@@ -169,7 +169,10 @@ class DataToolProvider:
         start_date = end_date - timedelta(days=days)
 
         # Get workout sessions
-        sessions = await self.oura_client.get_sessions(start_date, end_date)
+        # ⛔ Was get_sessions() until 2026-08-29 — that is Oura's meditation/breathing
+        # collection, so this tool returned an empty list forever without ever
+        # erroring. Sport lives in the separate "workout" collection.
+        sessions = await self.oura_client.get_workouts(start_date, end_date)
 
         if not sessions:
             return f"No workout sessions available for the last {days} days"

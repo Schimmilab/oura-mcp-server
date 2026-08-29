@@ -7,6 +7,7 @@ from urllib.parse import urljoin
 
 import httpx
 
+from .auth import OuraAuth, OuraAuthError as _OuraAuthErrorOAuth
 from ..utils.config import OuraAPIConfig
 from ..utils.logging import get_logger
 
@@ -36,7 +37,7 @@ class OuraClient:
     Handles authentication, rate limiting, and data retrieval.
     """
     
-    def __init__(self, config: OuraAPIConfig):
+    def __init__(self, config: OuraAPIConfig, auth: Optional[OuraAuth] = None):
         """
         Initialize Oura API client.
         
@@ -46,6 +47,18 @@ class OuraClient:
         self.config = config
         self.base_url = config.base_url
         self._client: Optional[httpx.AsyncClient] = None
+
+        # OAuth2 (2026-08-29). The auth object owns the token lifecycle; the client
+        # only asks it for headers. Injectable so tests can supply a fake.
+        self.auth = auth or OuraAuth(
+            client_id=getattr(config, "client_id", None),
+            client_secret=getattr(config, "client_secret", None),
+            redirect_uri=getattr(config, "redirect_uri", None),
+        )
+        if getattr(config, "access_token", None) and not self.auth.access_token:
+            self.auth.access_token = config.access_token
+        if getattr(config, "refresh_token", None) and not self.auth.refresh_token:
+            self.auth.refresh_token = config.refresh_token
         
         # Rate limiting state
         self._request_times: List[float] = []
@@ -64,12 +77,12 @@ class OuraClient:
     async def _ensure_client(self):
         """Ensure HTTP client is initialized."""
         if self._client is None:
+            # No Authorization header here on purpose: with OAuth2 the token can be
+            # rotated while the client lives, so it is attached per request instead
+            # of being baked into the session at construction time.
             self._client = httpx.AsyncClient(
                 timeout=self.config.timeout_seconds,
-                headers={
-                    "Authorization": f"Bearer {self.config.access_token}",
-                    "Content-Type": "application/json",
-                }
+                headers={"Content-Type": "application/json"},
             )
     
     async def close(self):
@@ -133,10 +146,26 @@ class OuraClient:
         url = urljoin(self.base_url, path)
         
         try:
-            response = await self._client.request(method, url, params=params)
-            
+            await self.auth.ensure_valid_token()
+            response = await self._client.request(
+                method, url, params=params, headers=self.auth.get_headers()
+            )
+
+            # A 401 is the normal way an expired token announces itself: tokens loaded
+            # from .env carry no expiry, so this — not the clock — is what drives the
+            # refresh. Retried exactly once; a second 401 means the credentials are
+            # dead, not stale, and only re-authorization helps.
             if response.status_code == 401:
-                raise OuraAuthError("Invalid access token")
+                await self.auth.refresh_access_token()
+                response = await self._client.request(
+                    method, url, params=params, headers=self.auth.get_headers()
+                )
+
+            if response.status_code == 401:
+                raise OuraAuthError(
+                    "Invalid access token after refresh — re-authorize with "
+                    "`python generate_tokens.py`"
+                )
             elif response.status_code == 429:
                 raise OuraRateLimitError("Rate limit exceeded")
             elif response.status_code >= 400:
@@ -318,12 +347,17 @@ class OuraClient:
         end_date: Optional[date] = None
     ) -> List[Dict[str, Any]]:
         """
-        Get workout/activity sessions.
-        
+        Get Oura "sessions" — guided breathing, meditation and relaxation moments.
+
+        ⚠️ These are NOT workouts. Oura keeps sport in a separate collection; use
+        :meth:`get_workouts` for that. The docstring here used to say
+        "workout/activity sessions", which is how get_workout_sessions ended up
+        querying this endpoint and silently returning an empty list forever.
+
         Args:
             start_date: Start date
             end_date: End date
-            
+
         Returns:
             List of session records
         """
@@ -338,6 +372,56 @@ class OuraClient:
         }
         
         response = await self._get("/v2/usercollection/session", params)
+        return response.get("data", [])
+
+    async def get_workouts(
+        self,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get workouts — sport activity with calories, distance and intensity.
+
+        Separate collection from :meth:`get_sessions`; confusing the two is why
+        workout data was missing until 2026-08-29.
+
+        Args:
+            start_date: Start date
+            end_date: End date
+
+        Returns:
+            List of workout records
+        """
+        if end_date is None:
+            end_date = date.today()
+        if start_date is None:
+            start_date = end_date - timedelta(days=7)
+
+        params = {
+            "start_date": self._format_date(start_date),
+            "end_date": self._format_date(end_date),
+        }
+
+        response = await self._get("/v2/usercollection/workout", params)
+        return response.get("data", [])
+
+    async def get_ring_battery_level(
+        self,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None
+    ) -> List[Dict[str, Any]]:
+        """Get the ring's battery level history (present in openapi 1.37)."""
+        if end_date is None:
+            end_date = date.today()
+        if start_date is None:
+            start_date = end_date - timedelta(days=7)
+
+        params = {
+            "start_date": self._format_date(start_date),
+            "end_date": self._format_date(end_date),
+        }
+
+        response = await self._get("/v2/usercollection/ring_battery_level", params)
         return response.get("data", [])
 
     async def get_daily_stress(
@@ -421,7 +505,9 @@ class OuraClient:
             "end_date": self._format_date(end_date),
         }
 
-        response = await self._get("/v2/usercollection/vo2_max", params)
+        # ⛔ The path really is "vO2_max" with a capital O — openapi 1.37 spells it
+        # that way and the lowercase variant returns 404. Verified live 2026-08-29.
+        response = await self._get("/v2/usercollection/vO2_max", params)
         return response.get("data", [])
 
     async def get_tags(

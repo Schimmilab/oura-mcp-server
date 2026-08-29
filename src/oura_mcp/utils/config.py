@@ -18,7 +18,14 @@ class RateLimitConfig(BaseModel):
 class OuraAPIConfig(BaseModel):
     """Oura API configuration."""
     base_url: str = "https://api.ouraring.com"
-    access_token: str
+    # Optional since the OAuth2 migration (2026-08-29): with the authorization code
+    # flow the access token is issued at runtime and refreshed automatically, so it
+    # is no longer a required piece of static configuration.
+    access_token: Optional[str] = None
+    client_id: Optional[str] = None
+    client_secret: Optional[str] = None
+    refresh_token: Optional[str] = None
+    redirect_uri: str = "http://localhost:8080/callback"
     rate_limit: RateLimitConfig = Field(default_factory=RateLimitConfig)
     timeout_seconds: int = 30
 
@@ -155,6 +162,15 @@ def load_config(config_path: Optional[str] = None) -> Config:
         raise ValueError(f"Invalid configuration: {e}")
 
 
+_OPTIONAL_ENV_VARS = {
+    "OURA_ACCESS_TOKEN",
+    "OURA_REFRESH_TOKEN",
+    "OURA_CLIENT_ID",
+    "OURA_CLIENT_SECRET",
+    "OURA_REDIRECT_URI",
+}
+
+
 def _substitute_env_vars(config: Any) -> Any:
     """
     Recursively substitute environment variables in config.
@@ -171,6 +187,12 @@ def _substitute_env_vars(config: Any) -> Any:
             var_name = config[2:-1]
             value = os.getenv(var_name)
             if value is None:
+                # Auth material is resolved at runtime by OuraAuth (OAuth2 flow) and
+                # may legitimately be absent before the first authorization. Failing
+                # here would make the server unstartable exactly when the user needs
+                # it up in order to authorize.
+                if var_name in _OPTIONAL_ENV_VARS:
+                    return None
                 raise ValueError(
                     f"Environment variable not set: {var_name}\n"
                     f"Please set it in .env or your environment"

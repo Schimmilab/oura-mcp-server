@@ -63,3 +63,5 @@ coverage.xml
 # Temporary files
 *.tmp
 tmp/
+.env.lock
+config/claude_desktop_config.json
