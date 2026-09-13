@@ -2,7 +2,7 @@
 
 import statistics
 from datetime import date, timedelta
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from ..api.client import OuraClient
 from ..utils.baselines import BaselineManager
@@ -15,6 +15,7 @@ from ..utils.sleep_aggregation import (
     merge_daily_sleep_scores,
 )
 from ..utils.illness_detection import IllnessDetector
+from ..utils.resting_hr import extract_resting_hr_series
 from ..utils.chronotype_analysis import ChronotypeAnalyzer
 
 
@@ -36,6 +37,42 @@ class IntelligenceToolProvider:
         self.alert_system = AlertSystem()
         self.illness_detector = IllnessDetector(baseline_days=30)
         self.chronotype_analyzer = ChronotypeAnalyzer(min_days=14)
+
+    async def _resting_hr_deviation(self, today: date) -> Optional[float]:
+        """Today's resting heart rate minus its own 30-day baseline, in bpm.
+
+        ⛔ Returns ``None`` when the value cannot be measured -- a missing pulse
+        is NOT a deviation of zero. Until v0.9.4 the two callers below passed a
+        hardcoded ``0`` with the comment "we'd need to calculate this from
+        baseline", which made the RHR term score its maximum every single day.
+        Measured against the vault: the pulse ranged 55-63 bpm over six days
+        while the reported deviation stayed 0, and on a day with no pulse at all
+        it still read 0. The red criterion "RHR >= +5 bpm above baseline" could
+        therefore never fire.
+
+        ⚠️ Known limit, deliberately not solved here: the baseline is a plain
+        mean over the window, so a run of elevated nights raises the reference
+        along with the value and shrinks the deviation. It detects a single bad
+        night, not a slow drift.
+        """
+        sleep_data = await self.oura_client.get_sleep(today - timedelta(days=30), today)
+        # long_sleep only: a late_nap on the same day carries its own trough,
+        # and which of the two won depended on the API's ordering.
+        series = extract_resting_hr_series(sleep_data or [], long_sleep_only=True)
+        if not series:
+            return None
+
+        latest_day, latest_bpm = series[-1]
+        if latest_day != today.isoformat():
+            # The night has not been delivered yet. Comparing an older night
+            # against the baseline would date the answer wrongly.
+            return None
+
+        baseline_values = [bpm for day, bpm in series if day != latest_day]
+        if len(baseline_values) < 7:
+            return None
+
+        return latest_bpm - statistics.mean(baseline_values)
 
     async def detect_recovery_status(self) -> str:
         """Detect current recovery status based on multiple signals."""
@@ -63,11 +100,13 @@ class IntelligenceToolProvider:
         baseline_readiness = await self.oura_client.get_daily_readiness(baseline_start, today)
         baselines = self.baseline_manager.calculate_readiness_baselines(baseline_readiness)
 
+        rhr_deviation = await self._resting_hr_deviation(today)
+
         # Interpret recovery state
         recovery_state = self.interpreter.interpret_recovery_state(
             readiness=readiness_score,
             hrv_balance=hrv_balance,
-            resting_hr_deviation=0,  # We'd need to calculate this from baseline
+            resting_hr_deviation=rhr_deviation,
             sleep_score=sleep_score,
             temperature_score=temp_score
         )
@@ -87,8 +126,16 @@ class IntelligenceToolProvider:
             name_display = signal_name.replace("_", " ").title()
             if 'value' in signal_data:
                 result += f"- **{name_display}:** {signal_data['value']} (weight: {signal_data['weight']}, impact: {signal_data['impact']})\n"
+            elif signal_data.get("deviation") is None:
+                result += (
+                    f"- **{name_display}:** ⛔ not available "
+                    f"(excluded from the score, weights renormalised)\n"
+                )
             else:
-                result += f"- **{name_display}:** {signal_data.get('deviation', 'N/A')} bpm deviation (weight: {signal_data['weight']})\n"
+                result += (
+                    f"- **{name_display}:** {signal_data['deviation']:+.1f} bpm deviation "
+                    f"(weight: {signal_data['weight']})\n"
+                )
 
         result += "\n"
 
@@ -127,7 +174,7 @@ class IntelligenceToolProvider:
         recovery_state = self.interpreter.interpret_recovery_state(
             readiness=readiness_score,
             hrv_balance=contributors.get("hrv_balance", 50),
-            resting_hr_deviation=0,
+            resting_hr_deviation=await self._resting_hr_deviation(today),
             sleep_score=sleep_data[-1].get("score", 70) if sleep_data else 70,
             temperature_score=contributors.get("body_temperature", 100)
         )

@@ -331,7 +331,7 @@ class InterpretationEngine:
         self,
         readiness: int,
         hrv_balance: int,
-        resting_hr_deviation: float,
+        resting_hr_deviation: Optional[float],
         sleep_score: int,
         temperature_score: int
     ) -> Dict[str, Any]:
@@ -351,13 +351,35 @@ class InterpretationEngine:
         # Calculate weighted recovery state
         # Prioritize: HRV (35%), Readiness (30%), Sleep (20%), RHR (10%), Temp (5%)
 
-        recovery_score = (
-            hrv_balance * 0.35 +
-            readiness * 0.30 +
-            sleep_score * 0.20 +
-            max(0, 100 - abs(resting_hr_deviation) * 10) * 0.10 +
-            temperature_score * 0.05
-        )
+        # A missing signal must LOWER the confidence, never score full marks.
+        # Until v0.9.4 the caller passed a hardcoded 0 here, so the RHR term
+        # always contributed its maximum 10 points -- see the module note in
+        # utils/resting_hr.py and tests/test_recovery_rhr_deviation.py.
+        rhr_available = resting_hr_deviation is not None
+
+        if rhr_available:
+            # ⛔ Kept as ONE literal expression, in its original term order.
+            # Summing the same weights in a different order moved an otherwise
+            # unchanged day from 78.1 to 78.2 (78.14999999999999 vs 78.15 in
+            # binary floating point). A fix must not shift numbers it was not
+            # asked to touch -- the regression test pins this value.
+            recovery_score = (
+                hrv_balance * 0.35 +
+                readiness * 0.30 +
+                sleep_score * 0.20 +
+                max(0, 100 - abs(resting_hr_deviation) * 10) * 0.10 +
+                temperature_score * 0.05
+            )
+        else:
+            # Renormalise over the weights actually present. Just dropping the
+            # term would deduct a flat 10 points, which reads as "bad recovery"
+            # instead of "one signal unknown" -- the opposite of what is meant.
+            present = ((hrv_balance, 0.35), (readiness, 0.30),
+                       (sleep_score, 0.20), (temperature_score, 0.05))
+            recovery_score = (
+                sum(value * weight for value, weight in present)
+                / sum(weight for _value, weight in present)
+            )
 
         # Determine recovery state
         if recovery_score >= 80:
@@ -402,7 +424,11 @@ class InterpretationEngine:
                 "hrv_balance": {"value": hrv_balance, "weight": "35%", "impact": "High"},
                 "readiness": {"value": readiness, "weight": "30%", "impact": "High"},
                 "sleep": {"value": sleep_score, "weight": "20%", "impact": "Medium"},
-                "resting_hr": {"deviation": resting_hr_deviation, "weight": "10%", "impact": "Medium"},
+                "resting_hr": (
+                    {"deviation": resting_hr_deviation, "weight": "10%", "impact": "Medium"}
+                    if rhr_available
+                    else {"deviation": None, "weight": "excluded", "impact": "not available"}
+                ),
                 "temperature": {"value": temperature_score, "weight": "5%", "impact": "Low"}
             }
         }
