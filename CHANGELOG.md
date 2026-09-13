@@ -7,6 +7,106 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.9.4] - 2026-09-13
+
+### 🐛 Fixed — the night was invisible whenever it began after midnight
+
+Two defects, found together because the second hid the first. Both were found by
+a control, not by reading the code.
+
+**1. `/sleep` dropped a night that started after midnight** (`api/client.py`)
+
+Oura filters this endpoint on `bedtime_start` and treats `end_date` as
+**exclusive** — unlike the `daily_*` endpoints, which filter on `day`
+inclusively. A night beginning at 02:20 carries `day == end_date` and is still
+not returned.
+
+The damage was not an empty result, which someone would have noticed. What came
+back was the 23-minute doze from the previous evening, so every caller reading
+"the latest session" got a **4-minute fragment instead of a 9-hour night**.
+Measured against a real account:
+
+```
+end_date=2026-09-13  ->  only type="sleep",      start 09-12T23:06
+end_date=2026-09-14  ->  plus type="long_sleep", start 09-13T02:20, 7h43m
+```
+
+Cross-checked against two independent instruments for that night: a Withings
+mattress sensor logged 02:16–11:28 and a CPAP 02:16:20 for 9.0 h. Three devices
+agreed within four minutes; only the query was wrong. For anyone who habitually
+falls asleep after midnight this fired nearly every day.
+
+The query now asks for one day more and trims the answer back on `day`.
+
+**2. The recovery score's resting-HR term was a hardcoded 0**
+(`tools/intelligence_tools.py`)
+
+Both callers of `interpret_recovery_state` passed `resting_hr_deviation=0` with
+the comment *"we'd need to calculate this from baseline"*. The term
+`max(0, 100 - abs(dev) * 10) * 0.10` therefore contributed its full 10 points
+every single day, and a red criterion such as "resting HR ≥ +5 bpm above
+baseline" could never fire.
+
+The control that exposed it is cheap and should have run much earlier: the
+reported pulse moved 62 · 62 · 61 · 63 · 57 · 55 bpm over six days while the
+reported deviation stayed 0 — and on a day with no pulse at all it still read 0.
+The real values are +1.0 · +0.9 · +0.1 · +2.1 · −3.9 · −5.8.
+
+It is now computed from `lowest_heart_rate` against its own 30-day baseline, and
+`None` when it cannot be measured. A missing signal is excluded and the
+remaining weights renormalised, so it widens the uncertainty instead of quietly
+scoring full marks.
+
+**3. A missing pulse rendered as `0` in `get_hrv_trend`** (`tools/debug_tools.py`)
+
+Naps and short fragments return no `lowest_heart_rate` and an
+`average_heart_rate` of 0, and the table printed that straight into a bpm
+column:
+
+```
+| 2026-09-13 | — | 0 | 0h4m | — | — |
+```
+
+That row is a doze; the real night sat underneath it. Implausible pulses now
+render as `—`, and any session too short to be a night is labelled
+`*(Fragment)*` — labelled rather than dropped, because silently removing rows is
+how the night went missing in the first place.
+
+### ➕ Added
+- `resting_hr.extract_resting_hr_series(..., long_sleep_only=True)`: on one
+  measured day a `late_nap` reported 65 bpm and the `long_sleep` 61 bpm for the
+  same date, so which value a "take the latest" caller saw depended on the order
+  the API returned them in. The default is unchanged; whether the illness
+  baseline should also exclude naps is a separate question with its own evidence.
+
+### 🧪 Tests
+27 → **60**. New: `test_sleep_window_off_by_one.py`,
+`test_recovery_rhr_deviation.py`, `test_hrv_trend_zero_pulse.py`. Every fix was
+accepted with a sabotage run — a deliberately broken copy that **must** fail the
+new tests.
+
+Three mistakes of my own during the work, each caught by a control rather than
+by review, and each recorded in the test files:
+
+- The first version of the score summed the same weights in a different order
+  and moved an **unchanged** day from 78.1 to 78.2 (78.14999999999999 vs 78.15).
+  The normal path is one literal expression again.
+- The fixtures had one session per day, so the nap ambiguity could not appear in
+  them — self-built test data shares the assumptions of its author. The live run
+  found it.
+- The leak test was **blind**: its candidate fell outside the widened window
+  too, so "widen the query, delete the trim" stayed green. The real leak case is
+  an evening doze that Oura dates to the next day.
+
+### ⚠️ Known limits
+- The RHR baseline is a plain mean over 30 days, so a run of elevated nights
+  raises the reference along with the value. It detects a single bad night, not a
+  slow drift.
+- A sleep session without a `type` is **not** assumed to be the main night. That
+  yields an admitted gap rather than a number that might be a nap.
+
+---
+
 ## [0.8.0] - 2026-07-09
 
 ### 🎉 Added - Complete Oura v2 User-Data Coverage
