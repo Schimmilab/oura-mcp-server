@@ -6,10 +6,15 @@ from typing import Any, Dict
 
 from ..api.client import OuraClient
 from ..utils.weekly_report import WeeklyReportGenerator
+from ..utils.resting_hr import MAX_PLAUSIBLE_BPM, MIN_PLAUSIBLE_BPM
 from ..utils.sleep_aggregation import (
     aggregate_sleep_sessions_by_day,
     merge_daily_sleep_scores,
 )
+
+
+# Anything shorter than this is a nap or a fragment, not a night.
+FRAGMENT_SECONDS = 3600
 
 
 class DebugToolProvider:
@@ -149,11 +154,27 @@ class DebugToolProvider:
             rem = session.get("rem_sleep_duration", 0)
 
             hrv_str = f"{hrv:.0f}" if hrv is not None else "—"
-            hr_str = f"{lowest_hr}" if lowest_hr is not None else (f"{hr:.0f}" if hr is not None else "—")
+            # ⛔ A pulse of 0 is not a pulse. Naps and short fragments come back
+            # with lowest_heart_rate missing and average_heart_rate 0, and this
+            # table printed that as "0" in a bpm column. On 2026-09-13 a
+            # 23-minute doze rendered as "| 2026-09-13 | — | 0 | 0h4m |" and was
+            # read as "Oura delivered no pulse for the night" -- the real night
+            # sat in the row underneath. A missing value must look missing.
+            hr_str = "—"
+            for candidate in (lowest_hr, hr):
+                if candidate is not None and MIN_PLAUSIBLE_BPM <= candidate <= MAX_PLAUSIBLE_BPM:
+                    hr_str = f"{candidate:.0f}"
+                    break
             total_str = f"{total // 3600}h{(total % 3600) // 60}m" if total else "—"
             deep_str = f"{deep // 60}m" if deep else "—"
             rem_str = f"{rem // 60}m" if rem else "—"
 
+            # Label anything too short to be a night, so it cannot be mistaken
+            # for one. Not dropped: a real night mistyped by Oura must stay
+            # visible, and silently hiding rows is how the night went missing in
+            # the first place.
+            if session.get("type") != "long_sleep" or total < FRAGMENT_SECONDS:
+                day = f"{day} *(Fragment)*"
             result += f"| {day} | {hrv_str} | {hr_str} | {total_str} | {deep_str} | {rem_str} |\n"
             if hrv is not None:
                 hrv_values.append(hrv)

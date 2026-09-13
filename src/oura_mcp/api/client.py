@@ -239,13 +239,37 @@ class OuraClient:
         if start_date is None:
             start_date = end_date - timedelta(days=1)
 
+        # ⛔ The /sleep endpoint filters on ``bedtime_start``, and ``end_date`` is
+        # EXCLUSIVE of it -- unlike the daily_* endpoints, which filter on ``day``
+        # inclusively. A night that begins after midnight therefore carries
+        # ``day == end_date`` but a ``bedtime_start`` ON end_date, and is dropped.
+        #
+        # Measured on 2026-09-13 against the real account:
+        #   end_date=2026-09-13 -> day 2026-09-13, type "sleep",      start 09-12T23:06  ✅
+        #                          day 2026-09-13, type "long_sleep", start 09-13T02:20  ⛔ missing
+        #   end_date=2026-09-14 -> both present
+        #
+        # The consequence was not a gap but a WRONG ANSWER: only a 23-minute
+        # fragment came back for the night, so every caller reading "the latest
+        # session" got a 4-minute doze instead of a 9-hour night. For a late
+        # sleeper this fires nearly every day, and it looked like Oura failing to
+        # deliver -- it had been recorded as such in the vault twice.
+        #
+        # Ask for one day more, then trim back to the range the caller wanted.
         params = {
             "start_date": self._format_date(start_date),
-            "end_date": self._format_date(end_date),
+            "end_date": self._format_date(end_date + timedelta(days=1)),
         }
 
         response = await self._get("/v2/usercollection/sleep", params)
-        return response.get("data", [])
+        sessions = response.get("data", [])
+
+        # Trim on ``day``, which is what callers mean by a date here.
+        lo, hi = self._format_date(start_date), self._format_date(end_date)
+        return [
+            s for s in sessions
+            if not isinstance(s, dict) or lo <= (s.get("day") or "") <= hi
+        ]
     
     async def get_daily_readiness(
         self,

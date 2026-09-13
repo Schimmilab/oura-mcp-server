@@ -26,16 +26,34 @@ MIN_PLAUSIBLE_BPM = 30.0
 MAX_PLAUSIBLE_BPM = 120.0
 
 
-def extract_resting_hr_series(sleep_data: List[Dict]) -> List[Tuple[str, float]]:
+def extract_resting_hr_series(
+    sleep_data: List[Dict],
+    long_sleep_only: bool = False,
+) -> List[Tuple[str, float]]:
     """Return ``(day, bpm)`` pairs, oldest first, skipping implausible values.
 
     Uses ``lowest_heart_rate`` — the nightly trough. ``average_heart_rate`` is
     deliberately not a fallback: it is a mean over the whole night and sits well
     above the resting value.
+
+    ⚠️ ``long_sleep_only`` keeps only sessions whose ``type`` is ``long_sleep``.
+    Without it a single day can contribute TWO values, and which one survives a
+    "take the latest" caller depends on the order the API happened to return
+    them in. Measured on 2026-09-08: the ``late_nap`` reported 65 bpm and the
+    ``long_sleep`` 61 bpm for the same day -- a 4 bpm spread decided by luck.
+    A nap's trough is not a resting heart rate, and mixing naps into a baseline
+    raises the reference with values that do not belong in it.
+
+    ⛔ The default stays ``False`` so existing callers keep their behaviour.
+    Whether the illness baseline should also exclude naps is a separate
+    question that needs its own evidence, not a drive-by change.
     """
+
     series: List[Tuple[str, float]] = []
     for session in sleep_data:
         if not isinstance(session, dict):
+            continue
+        if long_sleep_only and session.get("type") != "long_sleep":
             continue
         bpm = session.get("lowest_heart_rate")
         if bpm is None:
