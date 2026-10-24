@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.9.5] - 2026-10-24
+
+### 🐛 Fixed — the daily brief described two nights at once
+
+`generate_daily_brief` printed the sleep score of last night next to the
+duration of the night before (on 2026-10-24: score 83, total 5h 27m; the scored
+night was 7h 13m). The sleep periods were filtered on `day == yesterday`, citing
+an "Oura convention", while the score came from `daily_sleep` for `today`. Oura
+dates a sleep period by the day it ends, the same as `daily_sleep`; the filter
+now uses `today`.
+
+Checked against the real account after the fix: score 83, total 7h 26m (main
+sleep plus a 13-minute fragment, reported as 2 periods).
+
+`tests/test_daily_brief_sleep_day.py`: one MUSS (the duration belongs to the
+scored night) and one DARF-NICHT (the night before does not leak in); both
+failed against the old filter.
+
+---
+
 ## [0.9.4] - 2026-09-13
 
 ### 🐛 Fixed — the night was invisible whenever it began after midnight
