@@ -30,9 +30,10 @@ class DebugToolProvider:
         yesterday = today - timedelta(days=1)
 
         # Gather all data
-        # Sleep uses yesterday's date (Oura convention)
+        # Oura dates a sleep period by the day it ENDS, like daily_sleep. Filter
+        # on today so duration and score describe the same night.
         all_sleep_periods = await self.oura_client.get_sleep(yesterday - timedelta(days=1), today)
-        sleep_periods = [p for p in all_sleep_periods if p.get("day") == yesterday.isoformat()]
+        sleep_periods = [p for p in all_sleep_periods if p.get("day") == today.isoformat()]
 
         sleep_summary = await self.oura_client.get_daily_sleep(today, today)
         readiness_data = await self.oura_client.get_daily_readiness(today, today)

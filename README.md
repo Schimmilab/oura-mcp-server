@@ -67,12 +67,13 @@ Sleep analysis, readiness metrics, activity tracking, HRV insights and personal 
 - **Modular architecture**: API layer, tools, resources and utilities are separated
 - **Smart caching** that respects Oura API rate limits
 - **Privacy controls**: configurable access levels and audit logging
-- **Tests**: 60 unit tests covering the token lifecycle, the sleep-window date handling and resting-heart-rate handling. Three live smoke scripts against the real API are run manually — see `tests/conftest.py`. Coverage is **not** complete; the analysis and prediction layers are largely untested.
+- **Tests**: 62 unit tests covering the token lifecycle, the sleep-window date handling and resting-heart-rate handling. Three live smoke scripts against the real API are run manually — see `tests/conftest.py`. Coverage is **not** complete; the analysis and prediction layers are largely untested.
 
 ### Version history
 
 | Version | What it brought |
 |---|---|
+| **v0.9.5** | The daily brief showed the score of one night next to the duration of the night before |
 | **v0.9.4** | The main sleep was invisible whenever the night began after midnight — and the recovery score's resting-HR term was a hardcoded 0 |
 | **v0.9.3** | Sleep score never reached the checks that needed it — two alerts could never fire. Alerts now report checks they had to skip |
 | **v0.9.2** | Three more surfaces still printed the resting-HR score as bpm |
@@ -374,6 +375,7 @@ ruff check src/
 - [x] **v0.9.0**: OAuth2 migration — Oura deprecated Personal Access Tokens ✅ **2026-08-29**
 - [x] **v0.9.1 – v0.9.3**: Resting-heart-rate and sleep-score corrections ✅ **2026-08-29**
 - [x] **v0.9.4**: The night was invisible when it began after midnight ✅ **2026-09-13**
+- [x] **v0.9.5**: Daily brief paired the score with the previous night's duration ✅ **2026-10-24**
 - [ ] **Next**: CI on push (there is none yet), and a sleep-consistency metric that
       does not floor at 0 for ordinary variation
 
