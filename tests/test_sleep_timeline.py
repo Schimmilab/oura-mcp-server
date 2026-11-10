@@ -67,3 +67,47 @@ def test_hr_summary_finds_the_nadir_and_ignores_gaps():
 def test_hr_summary_without_data_returns_none_values():
     s = hr_summary({"heart_rate": {"interval": 300, "items": [None, None], "timestamp": SAMPLE["bedtime_start"]}})
     assert s == {"mean": None, "nadir_mean": None, "nadir_time": None, "first_hour_mean": None}
+
+
+import pytest
+
+from oura_mcp.tools.data_tools import DataToolProvider
+
+NIGHT = dict(SAMPLE, day="2026-11-10", type="long_sleep",
+             bedtime_end="2026-11-10T00:54:31.000+01:00",
+             sleep_phase_30_sec="4444" * 20, average_breath=14.25,
+             restless_periods=193, sleep_algorithm_version="v2")
+NAP = {"day": "2026-11-10", "type": "sleep", "bedtime_start": "2026-11-09T22:00:00+01:00",
+       "heart_rate": {"interval": 300, "items": [70.0], "timestamp": "2026-11-09T22:00:00+01:00"},
+       "hrv": {"interval": 300, "items": [10.0], "timestamp": "2026-11-09T22:00:00+01:00"},
+       "sleep_phase_5_min": "4"}
+
+
+class _FakeClient:
+    def __init__(self, rows):
+        self.rows = rows
+
+    async def get_sleep(self, start_date=None, end_date=None):
+        return self.rows
+
+
+@pytest.mark.asyncio
+async def test_timeline_tool_shows_main_sleep_with_caveat():
+    out = await DataToolProvider(_FakeClient([NAP, NIGHT])).get_sleep_timeline("2026-11-10")
+    assert "00:14" in out and "Leicht" in out and "| 78 |" in out
+    assert "klassifiziert" in out                      # phases are labelled
+    assert "14.25" in out and "193" in out             # breath + restless shown
+    assert "22:00" not in out                          # the nap is not the main sleep
+
+
+@pytest.mark.asyncio
+async def test_timeline_tool_30s_gives_runs_not_rows():
+    out = await DataToolProvider(_FakeClient([NIGHT])).get_sleep_timeline("2026-11-10", resolution="30s")
+    assert "Wach" in out and "min" in out
+    assert out.count("\n|") < 40, "30-second output must be run-length encoded"
+
+
+@pytest.mark.asyncio
+async def test_timeline_tool_without_night():
+    out = await DataToolProvider(_FakeClient([])).get_sleep_timeline("2026-11-10")
+    assert "Keine" in out

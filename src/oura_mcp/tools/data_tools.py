@@ -2,9 +2,10 @@
 
 import json
 from datetime import date, datetime, timedelta
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from ..api.client import OuraClient
+from ..utils.sleep_timeline import hr_summary, phase_runs, timeline_rows
 
 
 class DataToolProvider:
@@ -665,3 +666,41 @@ class DataToolProvider:
             result += f"- **Set up at:** {set_up_at}\n\n"
 
         return result
+
+    async def get_sleep_timeline(self, day: Optional[str] = None, resolution: str = "5min") -> str:
+        """Phases (classified) next to HR and HRV (measured) for the main sleep of a day."""
+        target = date.fromisoformat(day) if day else date.today()
+        periods = await self.oura_client.get_sleep(target - timedelta(days=1), target)
+        nights = [p for p in periods if p.get("day") == target.isoformat()]
+        if not nights:
+            return f"Keine Schlafperiode für {target.isoformat()}"
+        night = max(nights, key=lambda p: (p.get("type") == "long_sleep", len(p.get("sleep_phase_5_min") or "")))
+
+        s = hr_summary(night)
+
+        def fmt(v):
+            if v is None:
+                return "—"
+            return f"{v:g}" if isinstance(v, float) else str(v)
+
+        out = f"# 🛏️ Schlaf-Zeitleiste {target.isoformat()}\n\n"
+        out += (f"**Periode:** {night.get('bedtime_start', '')[11:16]}–{night.get('bedtime_end', '')[11:16]}"
+                f" · Typ {night.get('type')} · Algorithmus {night.get('sleep_algorithm_version') or '—'}\n")
+        out += (f"**Gemessen:** HR Ø {fmt(s['mean'])} · erste Stunde Ø {fmt(s['first_hour_mean'])} · "
+                f"tiefste 30 min Ø {fmt(s['nadir_mean'])} ab {fmt(s['nadir_time'])} · "
+                f"Atemfrequenz {fmt(night.get('average_breath'))}/min · Unruhephasen {fmt(night.get('restless_periods'))}\n")
+        out += "> ⚠️ Schlafphasen sind **klassifiziert (Oura-Algorithmus), nicht gemessen** — nicht als Beleg verwenden.\n\n"
+
+        if resolution == "30s":
+            phases = night.get("sleep_phase_30_sec") or ""
+            if not phases:
+                return out + "Keine 30-Sekunden-Phasen geliefert."
+            out += "| von | bis | Phase | Dauer |\n|---|---|---|---|\n"
+            for r in phase_runs(phases, night["bedtime_start"], 30):
+                out += f"| {r['start']} | {r['end']} | {r['phase']} | {r['minutes']} min |\n"
+            return out
+
+        out += "| Zeit | Phase | HR | HRV |\n|---|---|---|---|\n"
+        for r in timeline_rows(night):
+            out += f"| {r['time']} | {r['phase'] or '—'} | {fmt(r['hr'])} | {fmt(r['hrv'])} |\n"
+        return out

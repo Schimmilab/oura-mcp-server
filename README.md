@@ -11,6 +11,7 @@ A Model Context Protocol (MCP) server that provides AI assistants with structure
 | Tool | What it returns |
 |---|---|
 | `get_sleep_sessions` | Detailed sessions with exact times and durations, including naps and couch sleep |
+| `get_sleep_timeline` | 5-minute timeline of the main sleep: phases (classified, not measured) next to heart rate and HRV (measured), HR nadir, breathing rate, restless periods; `resolution="30s"` for 30-second phase blocks |
 | `get_raw_sleep_data` | Raw sleep payload for debugging |
 | `get_heart_rate_data` | Time-series heart rate with zones and activity breakdown |
 | `get_hrv_trend` | Raw HRV in **milliseconds** (`average_hrv`), not the score — plus resting HR and sleep stages |
