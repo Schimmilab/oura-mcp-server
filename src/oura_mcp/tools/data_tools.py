@@ -704,3 +704,35 @@ class DataToolProvider:
         for r in timeline_rows(night):
             out += f"| {r['time']} | {r['phase'] or '—'} | {fmt(r['hr'])} | {fmt(r['hrv'])} |\n"
         return out
+
+    async def get_ring_battery(self, hours: int = 24) -> str:
+        """Battery level plus charger periods (= times the ring was not worn)."""
+        end = datetime.now().astimezone()
+        rows = await self.oura_client.get_ring_battery_level(
+            start_datetime=end - timedelta(hours=hours), end_datetime=end
+        )
+        if not rows:
+            return f"Keine Akkudaten für die letzten {hours} h"
+        rows = sorted(rows, key=lambda r: r["timestamp"])
+
+        def local(ts: str) -> str:
+            return datetime.fromisoformat(ts.replace("Z", "+00:00")).astimezone().strftime("%H:%M")
+
+        out = (f"# 🔋 Ring-Akku (letzte {hours} h)\n\n"
+               f"**Aktuell:** {rows[-1].get('level')} % ({local(rows[-1]['timestamp'])})\n\n")
+        periods, start = [], None
+        for r in rows:
+            if r.get("in_charger") and start is None:
+                start = r["timestamp"]
+            elif not r.get("in_charger") and start is not None:
+                periods.append((start, r["timestamp"]))
+                start = None
+        if start is not None:
+            periods.append((start, rows[-1]["timestamp"]))
+        if periods:
+            out += "## Im Ladegerät (Ring nicht getragen)\n\n"
+            for a, b in periods:
+                out += f"- {local(a)}–{local(b)}\n"
+        else:
+            out += "Keine Ladephase im Zeitraum.\n"
+        return out

@@ -25,6 +25,7 @@ A Model Context Protocol (MCP) server that provides AI assistants with structure
 | `get_rest_mode_periods` | User-activated recovery mode |
 | `get_tags` / `get_enhanced_tags` | User notes; enhanced adds time ranges and comments |
 | `get_ring_configuration` | Hardware: colour, design, firmware, size |
+| `get_ring_battery` | Battery level and charger periods (when the ring was not worn) |
 
 ### 🧠 Analysis
 

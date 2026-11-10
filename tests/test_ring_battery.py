@@ -42,3 +42,35 @@ async def test_latest_only():
     client, seen = _recording_client()
     await client.get_ring_battery_level(latest=True)
     assert seen["params"] == {"latest": "true"}
+
+
+from oura_mcp.tools.data_tools import DataToolProvider
+
+SAMPLES = [
+    {"timestamp": "2026-11-10T04:00:00Z", "level": 90, "charging": False, "in_charger": False},
+    {"timestamp": "2026-11-10T05:00:00Z", "level": 85, "charging": True, "in_charger": True},
+    {"timestamp": "2026-11-10T05:20:00Z", "level": 95, "charging": True, "in_charger": True},
+    {"timestamp": "2026-11-10T05:40:00Z", "level": 81, "charging": False, "in_charger": False},
+]
+
+
+class _BatteryClient:
+    async def get_ring_battery_level(self, start_datetime=None, end_datetime=None, latest=False):
+        return SAMPLES[-1:] if latest else SAMPLES
+
+
+@pytest.mark.asyncio
+async def test_battery_tool_lists_charger_periods():
+    out = await DataToolProvider(_BatteryClient()).get_ring_battery(24)
+    assert "81 %" in out                      # latest level
+    assert "Im Ladegerät" in out              # a charger period is reported
+    assert "06:00" in out and "06:40" in out  # local time (UTC+1): in at 06:00, out at 06:40
+
+
+@pytest.mark.asyncio
+async def test_battery_tool_handles_no_data():
+    class Empty:
+        async def get_ring_battery_level(self, **kw):
+            return []
+    out = await DataToolProvider(Empty()).get_ring_battery(24)
+    assert "Keine" in out

@@ -561,6 +561,16 @@ class OuraMCPServer:
                 }
             ))
 
+            # Add ring battery tool
+            tools.append(types.Tool(
+                name="get_ring_battery",
+                description="Ring battery level and charger periods (when the ring was not worn)",
+                inputSchema={
+                    "type": "object",
+                    "properties": {"hours": {"type": "integer", "description": "Look-back window in hours", "default": 24}},
+                },
+            ))
+
             # Add SpO2 tool
             tools.append(types.Tool(
                 name="get_spo2_data",
@@ -907,6 +917,10 @@ class OuraMCPServer:
                     result = await self._tool_get_ring_configuration()
                     return [types.TextContent(type="text", text=result)]
 
+                elif name == "get_ring_battery":
+                    result = await self._tool_get_ring_battery(arguments.get("hours", 24))
+                    return [types.TextContent(type="text", text=result)]
+
                 elif name == "get_spo2_data":
                     days = arguments.get("days", 7)
                     result = await self._tool_get_spo2_data(days)
@@ -1081,6 +1095,10 @@ class OuraMCPServer:
     async def _tool_get_ring_configuration(self) -> str:
         """Get ring configuration."""
         return await self.data_tools.get_ring_configuration()
+
+    async def _tool_get_ring_battery(self, hours: int) -> str:
+        """Ring battery level and charger periods."""
+        return await self.data_tools.get_ring_battery(hours)
 
     async def _tool_get_spo2_data(self, days: int) -> str:
         """Get SpO2 (blood oxygen saturation) data."""
