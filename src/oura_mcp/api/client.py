@@ -212,6 +212,40 @@ class OuraClient:
             "return a list that would look complete but is not"
         )
 
+    async def _get_all_windowed(
+        self,
+        path: str,
+        start: datetime,
+        end: datetime,
+        max_days: int = 30,
+    ) -> List[Dict[str, Any]]:
+        """Datetime-filtered list endpoint over any range, in windows of <= max_days.
+
+        ⛔ heartrate and ring_battery_level answer 400 ("Timerange ... less than or
+        equal to 30 days") above 30 days (measured 2026-11-10: 30 → 200, 31 → 400).
+        Windows share their edges, so samples on a boundary are de-duplicated by
+        timestamp; the result is sorted by timestamp.
+        """
+        rows: List[Dict[str, Any]] = []
+        a = start
+        step = timedelta(days=max_days)
+        while a < end:
+            b = min(a + step, end)
+            rows.extend(await self._get_all(path, {
+                "start_datetime": a.isoformat(),
+                "end_datetime": b.isoformat(),
+            }))
+            a = b
+        seen, unique = set(), []
+        for r in rows:
+            key = r.get("timestamp") if isinstance(r, dict) else None
+            if key is not None and key in seen:
+                continue
+            if key is not None:
+                seen.add(key)
+            unique.append(r)
+        return sorted(unique, key=lambda r: (r.get("timestamp") or "") if isinstance(r, dict) else "")
+
     def _format_date(self, d: date) -> str:
         """Format date for API."""
         return d.isoformat()
@@ -373,12 +407,7 @@ class OuraClient:
         if start_datetime is None:
             start_datetime = end_datetime - timedelta(hours=24)
         
-        params = {
-            "start_datetime": start_datetime.isoformat(),
-            "end_datetime": end_datetime.isoformat(),
-        }
-        
-        return await self._get_all("/v2/usercollection/heartrate", params)
+        return await self._get_all_windowed("/v2/usercollection/heartrate", start_datetime, end_datetime)
     
     async def get_personal_info(self) -> Dict[str, Any]:
         """
@@ -470,11 +499,7 @@ class OuraClient:
             end_datetime = datetime.now()
         if start_datetime is None:
             start_datetime = end_datetime - timedelta(hours=24)
-        params = {
-            "start_datetime": start_datetime.isoformat(),
-            "end_datetime": end_datetime.isoformat(),
-        }
-        return await self._get_all("/v2/usercollection/ring_battery_level", params)
+        return await self._get_all_windowed("/v2/usercollection/ring_battery_level", start_datetime, end_datetime)
 
     async def get_daily_stress(
         self,

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.10.1] - 2026-11-10
+
+### 🐛 Fixed — heart rate and battery ranges over 30 days failed with HTTP 400
+
+`heartrate` and `ring_battery_level` reject ranges above 30 days ("Timerange between
+start and endtime has to be less than or equal to 30 days"; measured on the live
+account: 30 days → 200, 31 → 400). `get_ring_battery(hours > 720)` and every heart-rate
+request over a month failed outright. The client now splits such ranges into
+≤ 30-day windows (`_get_all_windowed`), removes samples duplicated on window edges and
+returns them sorted. Live: battery 75 days → 3503 samples, 0 duplicates; heart rate
+45 days → 31342 samples.
+
+---
+
 ## [0.10.0] - 2026-11-10
 
 ### 🐛 Fixed — long ranges were cut off at 1000 rows
