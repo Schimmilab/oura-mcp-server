@@ -33,6 +33,12 @@ It sent `start_date`/`end_date`; the endpoint takes `start_datetime`/`end_dateti
 - `get_daily_cardiovascular_age` shows pulse wave velocity, labelled as derived
   from vascular age (per spec), not an independent measurement.
 
+### 🔍 Found only in the live acceptance run
+- Charger periods over a multi-day window were printed without a date.
+- 30-second phase runs showed a lone 30 s slot as "0 min"; durations are now the
+  real length (0.5 min steps). Check: all runs of the night 2026-11-10 add up to
+  387.5 min = 775 × 30 s.
+
 ---
 
 ## [0.9.5] - 2026-10-24
