@@ -454,20 +454,26 @@ class OuraClient:
 
     async def get_ring_battery_level(
         self,
-        start_date: Optional[date] = None,
-        end_date: Optional[date] = None
+        start_datetime: Optional[datetime] = None,
+        end_datetime: Optional[datetime] = None,
+        latest: bool = False,
     ) -> List[Dict[str, Any]]:
-        """Get the ring's battery level history (present in openapi 1.37)."""
-        if end_date is None:
-            end_date = date.today()
-        if start_date is None:
-            start_date = end_date - timedelta(days=7)
+        """Ring battery samples (level, charging, in_charger).
 
+        The endpoint is datetime-filtered (start_datetime/end_datetime) like
+        heartrate — not date-filtered. ``latest=True`` returns only the newest
+        sample and ignores the range.
+        """
+        if latest:
+            return await self._get_all("/v2/usercollection/ring_battery_level", {"latest": "true"})
+        if end_datetime is None:
+            end_datetime = datetime.now()
+        if start_datetime is None:
+            start_datetime = end_datetime - timedelta(hours=24)
         params = {
-            "start_date": self._format_date(start_date),
-            "end_date": self._format_date(end_date),
+            "start_datetime": start_datetime.isoformat(),
+            "end_datetime": end_datetime.isoformat(),
         }
-
         return await self._get_all("/v2/usercollection/ring_battery_level", params)
 
     async def get_daily_stress(
