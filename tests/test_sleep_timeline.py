@@ -111,3 +111,10 @@ async def test_timeline_tool_30s_gives_runs_not_rows():
 async def test_timeline_tool_without_night():
     out = await DataToolProvider(_FakeClient([])).get_sleep_timeline("2026-11-10")
     assert "Keine" in out
+
+
+def test_phase_run_minutes_match_the_printed_clock_times():
+    """49 × 30 s = 24.5 min starting at :31 s prints 00:14–00:39; floor gave '24 min'."""
+    runs = phase_runs("4" * 49 + "2", start="2026-11-10T00:14:31+01:00", step_seconds=30)
+    assert runs[0]["start"] == "00:14" and runs[0]["end"] == "00:39"
+    assert runs[0]["minutes"] == 25

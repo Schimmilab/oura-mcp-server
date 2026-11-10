@@ -726,8 +726,16 @@ class DataToolProvider:
             return f"Keine Akkudaten für die letzten {hours} h"
         rows = sorted(rows, key=lambda r: r["timestamp"])
 
+        def to_local(ts: str) -> datetime:
+            return datetime.fromisoformat(ts.replace("Z", "+00:00")).astimezone()
+
         def local(ts: str) -> str:
-            return datetime.fromisoformat(ts.replace("Z", "+00:00")).astimezone().strftime("%H:%M")
+            return to_local(ts).strftime("%H:%M")
+
+        def span(a: str, b: str) -> str:
+            la, lb = to_local(a), to_local(b)
+            end = lb.strftime("%H:%M") if la.date() == lb.date() else lb.strftime("%d.%m. %H:%M")
+            return f"{la.strftime('%d.%m. %H:%M')}–{end}"
 
         out = (f"# 🔋 Ring-Akku (letzte {hours} h)\n\n"
                f"**Aktuell:** {rows[-1].get('level')} % ({local(rows[-1]['timestamp'])})\n\n")
@@ -743,7 +751,7 @@ class DataToolProvider:
         if periods:
             out += "## Im Ladegerät (Ring nicht getragen)\n\n"
             for a, b in periods:
-                out += f"- {local(a)}–{local(b)}\n"
+                out += f"- {span(a, b)}\n"
         else:
             out += "Keine Ladephase im Zeitraum.\n"
         return out

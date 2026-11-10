@@ -74,3 +74,10 @@ async def test_battery_tool_handles_no_data():
             return []
     out = await DataToolProvider(Empty()).get_ring_battery(24)
     assert "Keine" in out
+
+
+@pytest.mark.asyncio
+async def test_charger_periods_carry_the_date():
+    """Over a multi-day window, '10:08–12:06' alone cannot be placed on a day."""
+    out = await DataToolProvider(_BatteryClient()).get_ring_battery(168)
+    assert "10.11. 06:00–06:40" in out
