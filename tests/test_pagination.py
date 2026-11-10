@@ -55,3 +55,27 @@ async def test_runaway_paging_raises_instead_of_looping():
     client, _ = _client_with_pages(endless)
     with pytest.raises(RuntimeError, match="next_token"):
         await client._get_all("/p", {}, max_pages=5)
+
+
+import re
+from pathlib import Path
+
+CLIENT_SRC = Path(__file__).parent.parent / "src" / "oura_mcp" / "api" / "client.py"
+# personal_info is a single object, not a paginated list.
+NOT_PAGINATED = {"/v2/usercollection/personal_info"}
+
+
+def _direct_list_calls(src: str) -> list[str]:
+    return [p for p in re.findall(r'self\._get\(\s*"(/v2/usercollection/[^"]+)"', src)
+            if p not in NOT_PAGINATED]
+
+
+def test_no_list_getter_bypasses_get_all():
+    offenders = _direct_list_calls(CLIENT_SRC.read_text())
+    assert not offenders, f"these getters ignore next_token: {offenders}"
+
+
+def test_guard_actually_detects_a_bypass():
+    """Negative control: a planted direct call must be found."""
+    planted = 'response = await self._get("/v2/usercollection/heartrate", params)'
+    assert _direct_list_calls(planted) == ["/v2/usercollection/heartrate"]
