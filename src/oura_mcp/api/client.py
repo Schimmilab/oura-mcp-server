@@ -181,7 +181,37 @@ class OuraClient:
     async def _get(self, path: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """GET request wrapper."""
         return await self._request("GET", path, params)
-    
+
+    async def _get_all(
+        self,
+        path: str,
+        params: Optional[Dict[str, Any]] = None,
+        max_pages: int = 200,
+    ) -> List[Dict[str, Any]]:
+        """GET a list endpoint and follow ``next_token`` until it is exhausted.
+
+        ⛔ Without this, heartrate over 14 days came back as exactly 1000 rows
+        (measured 2026-11-10) and the rest was dropped silently. ``max_pages``
+        guards against a server that never stops handing out tokens: that is
+        raised, not truncated, because a truncated list looks complete.
+        """
+        base = dict(params or {})
+        rows: List[Dict[str, Any]] = []
+        token: Optional[str] = None
+        for _ in range(max_pages):
+            page_params = dict(base)
+            if token:
+                page_params["next_token"] = token
+            response = await self._get(path, page_params)
+            rows.extend(response.get("data", []))
+            token = response.get("next_token")
+            if not token:
+                return rows
+        raise RuntimeError(
+            f"{path}: still a next_token after {max_pages} pages — refusing to "
+            "return a list that would look complete but is not"
+        )
+
     def _format_date(self, d: date) -> str:
         """Format date for API."""
         return d.isoformat()
