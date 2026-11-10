@@ -181,7 +181,37 @@ class OuraClient:
     async def _get(self, path: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """GET request wrapper."""
         return await self._request("GET", path, params)
-    
+
+    async def _get_all(
+        self,
+        path: str,
+        params: Optional[Dict[str, Any]] = None,
+        max_pages: int = 200,
+    ) -> List[Dict[str, Any]]:
+        """GET a list endpoint and follow ``next_token`` until it is exhausted.
+
+        ⛔ Without this, heartrate over 14 days came back as exactly 1000 rows
+        (measured 2026-11-10) and the rest was dropped silently. ``max_pages``
+        guards against a server that never stops handing out tokens: that is
+        raised, not truncated, because a truncated list looks complete.
+        """
+        base = dict(params or {})
+        rows: List[Dict[str, Any]] = []
+        token: Optional[str] = None
+        for _ in range(max_pages):
+            page_params = dict(base)
+            if token:
+                page_params["next_token"] = token
+            response = await self._get(path, page_params)
+            rows.extend(response.get("data", []))
+            token = response.get("next_token")
+            if not token:
+                return rows
+        raise RuntimeError(
+            f"{path}: still a next_token after {max_pages} pages — refusing to "
+            "return a list that would look complete but is not"
+        )
+
     def _format_date(self, d: date) -> str:
         """Format date for API."""
         return d.isoformat()
@@ -213,8 +243,7 @@ class OuraClient:
             "end_date": self._format_date(end_date),
         }
 
-        response = await self._get("/v2/usercollection/daily_sleep", params)
-        return response.get("data", [])
+        return await self._get_all("/v2/usercollection/daily_sleep", params)
 
     async def get_sleep(
         self,
@@ -261,8 +290,7 @@ class OuraClient:
             "end_date": self._format_date(end_date + timedelta(days=1)),
         }
 
-        response = await self._get("/v2/usercollection/sleep", params)
-        sessions = response.get("data", [])
+        sessions = await self._get_all("/v2/usercollection/sleep", params)
 
         # Trim on ``day``, which is what callers mean by a date here.
         lo, hi = self._format_date(start_date), self._format_date(end_date)
@@ -296,8 +324,7 @@ class OuraClient:
             "end_date": self._format_date(end_date),
         }
         
-        response = await self._get("/v2/usercollection/daily_readiness", params)
-        return response.get("data", [])
+        return await self._get_all("/v2/usercollection/daily_readiness", params)
     
     async def get_daily_activity(
         self,
@@ -324,8 +351,7 @@ class OuraClient:
             "end_date": self._format_date(end_date),
         }
         
-        response = await self._get("/v2/usercollection/daily_activity", params)
-        return response.get("data", [])
+        return await self._get_all("/v2/usercollection/daily_activity", params)
     
     async def get_heart_rate(
         self,
@@ -352,8 +378,7 @@ class OuraClient:
             "end_datetime": end_datetime.isoformat(),
         }
         
-        response = await self._get("/v2/usercollection/heartrate", params)
-        return response.get("data", [])
+        return await self._get_all("/v2/usercollection/heartrate", params)
     
     async def get_personal_info(self) -> Dict[str, Any]:
         """
@@ -395,8 +420,7 @@ class OuraClient:
             "end_date": self._format_date(end_date),
         }
         
-        response = await self._get("/v2/usercollection/session", params)
-        return response.get("data", [])
+        return await self._get_all("/v2/usercollection/session", params)
 
     async def get_workouts(
         self,
@@ -426,27 +450,31 @@ class OuraClient:
             "end_date": self._format_date(end_date),
         }
 
-        response = await self._get("/v2/usercollection/workout", params)
-        return response.get("data", [])
+        return await self._get_all("/v2/usercollection/workout", params)
 
     async def get_ring_battery_level(
         self,
-        start_date: Optional[date] = None,
-        end_date: Optional[date] = None
+        start_datetime: Optional[datetime] = None,
+        end_datetime: Optional[datetime] = None,
+        latest: bool = False,
     ) -> List[Dict[str, Any]]:
-        """Get the ring's battery level history (present in openapi 1.37)."""
-        if end_date is None:
-            end_date = date.today()
-        if start_date is None:
-            start_date = end_date - timedelta(days=7)
+        """Ring battery samples (level, charging, in_charger).
 
+        The endpoint is datetime-filtered (start_datetime/end_datetime) like
+        heartrate — not date-filtered. ``latest=True`` returns only the newest
+        sample and ignores the range.
+        """
+        if latest:
+            return await self._get_all("/v2/usercollection/ring_battery_level", {"latest": "true"})
+        if end_datetime is None:
+            end_datetime = datetime.now()
+        if start_datetime is None:
+            start_datetime = end_datetime - timedelta(hours=24)
         params = {
-            "start_date": self._format_date(start_date),
-            "end_date": self._format_date(end_date),
+            "start_datetime": start_datetime.isoformat(),
+            "end_datetime": end_datetime.isoformat(),
         }
-
-        response = await self._get("/v2/usercollection/ring_battery_level", params)
-        return response.get("data", [])
+        return await self._get_all("/v2/usercollection/ring_battery_level", params)
 
     async def get_daily_stress(
         self,
@@ -473,8 +501,7 @@ class OuraClient:
             "end_date": self._format_date(end_date),
         }
 
-        response = await self._get("/v2/usercollection/daily_stress", params)
-        return response.get("data", [])
+        return await self._get_all("/v2/usercollection/daily_stress", params)
 
     async def get_daily_spo2(
         self,
@@ -501,8 +528,7 @@ class OuraClient:
             "end_date": self._format_date(end_date),
         }
 
-        response = await self._get("/v2/usercollection/daily_spo2", params)
-        return response.get("data", [])
+        return await self._get_all("/v2/usercollection/daily_spo2", params)
 
     async def get_vo2_max(
         self,
@@ -531,8 +557,7 @@ class OuraClient:
 
         # ⛔ The path really is "vO2_max" with a capital O — openapi 1.37 spells it
         # that way and the lowercase variant returns 404. Verified live 2026-08-29.
-        response = await self._get("/v2/usercollection/vO2_max", params)
-        return response.get("data", [])
+        return await self._get_all("/v2/usercollection/vO2_max", params)
 
     async def get_tags(
         self,
@@ -559,8 +584,7 @@ class OuraClient:
             "end_date": self._format_date(end_date),
         }
 
-        response = await self._get("/v2/usercollection/tag", params)
-        return response.get("data", [])
+        return await self._get_all("/v2/usercollection/tag", params)
 
     async def get_daily_resilience(
         self,
@@ -590,8 +614,7 @@ class OuraClient:
             "end_date": self._format_date(end_date),
         }
 
-        response = await self._get("/v2/usercollection/daily_resilience", params)
-        return response.get("data", [])
+        return await self._get_all("/v2/usercollection/daily_resilience", params)
 
     async def get_daily_cardiovascular_age(
         self,
@@ -621,8 +644,7 @@ class OuraClient:
             "end_date": self._format_date(end_date),
         }
 
-        response = await self._get("/v2/usercollection/daily_cardiovascular_age", params)
-        return response.get("data", [])
+        return await self._get_all("/v2/usercollection/daily_cardiovascular_age", params)
 
     async def get_sleep_time(
         self,
@@ -652,8 +674,7 @@ class OuraClient:
             "end_date": self._format_date(end_date),
         }
 
-        response = await self._get("/v2/usercollection/sleep_time", params)
-        return response.get("data", [])
+        return await self._get_all("/v2/usercollection/sleep_time", params)
 
     async def get_rest_mode_periods(
         self,
@@ -683,8 +704,7 @@ class OuraClient:
             "end_date": self._format_date(end_date),
         }
 
-        response = await self._get("/v2/usercollection/rest_mode_period", params)
-        return response.get("data", [])
+        return await self._get_all("/v2/usercollection/rest_mode_period", params)
 
     async def get_enhanced_tags(
         self,
@@ -714,8 +734,7 @@ class OuraClient:
             "end_date": self._format_date(end_date),
         }
 
-        response = await self._get("/v2/usercollection/enhanced_tag", params)
-        return response.get("data", [])
+        return await self._get_all("/v2/usercollection/enhanced_tag", params)
 
     async def get_ring_configuration(self) -> List[Dict[str, Any]]:
         """
@@ -727,5 +746,4 @@ class OuraClient:
         Returns:
             List of ring configuration records
         """
-        response = await self._get("/v2/usercollection/ring_configuration")
-        return response.get("data", [])
+        return await self._get_all("/v2/usercollection/ring_configuration")

@@ -2,9 +2,10 @@
 
 import json
 from datetime import date, datetime, timedelta
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from ..api.client import OuraClient
+from ..utils.sleep_timeline import hr_summary, phase_runs, timeline_rows
 
 
 class DataToolProvider:
@@ -88,6 +89,10 @@ class DataToolProvider:
                     result += f"**Efficiency:** {session['efficiency']}%\n"
                 if session.get("latency"):
                     result += f"**Sleep Latency:** {session['latency'] // 60}m\n"
+                if session.get("average_breath") is not None:
+                    result += f"**Breathing rate:** {session['average_breath']} /min\n"
+                if session.get("restless_periods") is not None:
+                    result += f"**Restless periods:** {session['restless_periods']}\n"
 
                 result += "\n"
 
@@ -328,12 +333,15 @@ class DataToolProvider:
             result += f"**Status:** {status}\n"
             result += f"*{note}*\n\n"
 
-        result += f"## Daily Values\n\n"
-        for record in spo2_data:
-            day = record.get("day", "Unknown")
-            spo2_avg = record.get("spo2_percentage", {}).get("average")
-            if spo2_avg:
-                result += f"- **{day}:** {spo2_avg:.1f}%\n"
+        result += "## Daily Values\n\n| Tag | SpO2 Ø | BDI |\n|---|---|---|\n"
+        for record in sorted(spo2_data, key=lambda x: x.get("day", ""), reverse=True):
+            avg = (record.get("spo2_percentage") or {}).get("average")
+            bdi = record.get("breathing_disturbance_index")
+            avg_txt = "—" if avg is None else f"{avg:.1f} %"
+            bdi_txt = "—" if bdi is None else bdi
+            result += f"| {record.get('day', 'Unknown')} | {avg_txt} | {bdi_txt} |\n"
+        result += ("\n*BDI = Breathing Disturbance Index (0–100) aus erkannten SpO2-Abfällen. "
+                   "Gegenprobe: AHI aus OSCAR.*\n")
 
         return result
 
@@ -523,8 +531,12 @@ class DataToolProvider:
         for record in records_sorted:
             day = record.get("day", "Unknown")
             va = record.get("vascular_age")
-            if va is not None:
-                result += f"- **{day}:** {va} years\n"
+            pwv = record.get("pulse_wave_velocity")
+            if va is not None or pwv is not None:
+                pwv_txt = "—" if pwv is None else f"{pwv:.2f} m/s"
+                result += f"- **{day}:** {va if va is not None else '—'} years · PWV {pwv_txt}\n"
+        result += ("\n*PWV laut Oura-Spec abgeleitet aus dem vaskulären Alter (mit möglichem Offset), "
+                   "keine eigene Messung — nicht als unabhängige Gegenprobe zu anderen Geräten verwenden.*\n")
 
         return result
 
@@ -665,3 +677,81 @@ class DataToolProvider:
             result += f"- **Set up at:** {set_up_at}\n\n"
 
         return result
+
+    async def get_sleep_timeline(self, day: Optional[str] = None, resolution: str = "5min") -> str:
+        """Phases (classified) next to HR and HRV (measured) for the main sleep of a day."""
+        target = date.fromisoformat(day) if day else date.today()
+        periods = await self.oura_client.get_sleep(target - timedelta(days=1), target)
+        nights = [p for p in periods if p.get("day") == target.isoformat()]
+        if not nights:
+            return f"Keine Schlafperiode für {target.isoformat()}"
+        night = max(nights, key=lambda p: (p.get("type") == "long_sleep", len(p.get("sleep_phase_5_min") or "")))
+
+        s = hr_summary(night)
+
+        def fmt(v):
+            if v is None:
+                return "—"
+            return f"{v:g}" if isinstance(v, float) else str(v)
+
+        out = f"# 🛏️ Schlaf-Zeitleiste {target.isoformat()}\n\n"
+        out += (f"**Periode:** {night.get('bedtime_start', '')[11:16]}–{night.get('bedtime_end', '')[11:16]}"
+                f" · Typ {night.get('type')} · Algorithmus {night.get('sleep_algorithm_version') or '—'}\n")
+        out += (f"**Gemessen:** HR Ø {fmt(s['mean'])} · erste Stunde Ø {fmt(s['first_hour_mean'])} · "
+                f"tiefste 30 min Ø {fmt(s['nadir_mean'])} ab {fmt(s['nadir_time'])} · "
+                f"Atemfrequenz {fmt(night.get('average_breath'))}/min · Unruhephasen {fmt(night.get('restless_periods'))}\n")
+        out += "> ⚠️ Schlafphasen sind **klassifiziert (Oura-Algorithmus), nicht gemessen** — nicht als Beleg verwenden.\n\n"
+
+        if resolution == "30s":
+            phases = night.get("sleep_phase_30_sec") or ""
+            if not phases:
+                return out + "Keine 30-Sekunden-Phasen geliefert."
+            out += "| von | bis | Phase | Dauer |\n|---|---|---|---|\n"
+            for r in phase_runs(phases, night["bedtime_start"], 30):
+                out += f"| {r['start']} | {r['end']} | {r['phase']} | {r['minutes']:g} min |\n"
+            return out
+
+        out += "| Zeit | Phase | HR | HRV |\n|---|---|---|---|\n"
+        for r in timeline_rows(night):
+            out += f"| {r['time']} | {r['phase'] or '—'} | {fmt(r['hr'])} | {fmt(r['hrv'])} |\n"
+        return out
+
+    async def get_ring_battery(self, hours: int = 24) -> str:
+        """Battery level plus charger periods (= times the ring was not worn)."""
+        end = datetime.now().astimezone()
+        rows = await self.oura_client.get_ring_battery_level(
+            start_datetime=end - timedelta(hours=hours), end_datetime=end
+        )
+        if not rows:
+            return f"Keine Akkudaten für die letzten {hours} h"
+        rows = sorted(rows, key=lambda r: r["timestamp"])
+
+        def to_local(ts: str) -> datetime:
+            return datetime.fromisoformat(ts.replace("Z", "+00:00")).astimezone()
+
+        def local(ts: str) -> str:
+            return to_local(ts).strftime("%H:%M")
+
+        def span(a: str, b: str) -> str:
+            la, lb = to_local(a), to_local(b)
+            end = lb.strftime("%H:%M") if la.date() == lb.date() else lb.strftime("%d.%m. %H:%M")
+            return f"{la.strftime('%d.%m. %H:%M')}–{end}"
+
+        out = (f"# 🔋 Ring-Akku (letzte {hours} h)\n\n"
+               f"**Aktuell:** {rows[-1].get('level')} % ({local(rows[-1]['timestamp'])})\n\n")
+        periods, start = [], None
+        for r in rows:
+            if r.get("in_charger") and start is None:
+                start = r["timestamp"]
+            elif not r.get("in_charger") and start is not None:
+                periods.append((start, r["timestamp"]))
+                start = None
+        if start is not None:
+            periods.append((start, rows[-1]["timestamp"]))
+        if periods:
+            out += "## Im Ladegerät (Ring nicht getragen)\n\n"
+            for a, b in periods:
+                out += f"- {span(a, b)}\n"
+        else:
+            out += "Keine Ladephase im Zeitraum.\n"
+        return out

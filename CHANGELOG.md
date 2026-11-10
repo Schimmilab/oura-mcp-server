@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.10.0] - 2026-11-10
+
+### 🐛 Fixed — long ranges were cut off at 1000 rows
+
+The client never followed `next_token`. heartrate over 14 days returned exactly
+1000 rows (measured 2026-11-10) and the tool output looked complete; after the fix
+the same range returns 8980 rows. Every list getter now pages through `_get_all()`;
+a source guard test fails if a getter calls `_get()` directly again (with a
+planted-bypass negative control). Runaway paging raises instead of truncating.
+
+### 🐛 Fixed — ring_battery_level ignored the requested range
+
+It sent `start_date`/`end_date`; the endpoint takes `start_datetime`/`end_datetime`
+(OpenAPI 1.43). `latest=True` is supported.
+
+### ✨ Added
+- `get_sleep_timeline` — 5-minute timeline: phases (classified) next to HR and HRV
+  (measured), HR nadir, breathing rate, restless periods; `resolution="30s"` gives
+  30-second phase blocks.
+- `get_ring_battery` — level and charger periods (ring not worn), dated.
+- `get_spo2_data` shows the Breathing Disturbance Index per night (0 is shown as 0,
+  missing as —).
+- `get_sleep_sessions` shows breathing rate and restless periods.
+- `get_daily_cardiovascular_age` shows pulse wave velocity, labelled as derived
+  from vascular age (per spec), not an independent measurement.
+
+---
+
 ## [0.9.5] - 2026-10-24
 
 ### 🐛 Fixed — the daily brief described two nights at once

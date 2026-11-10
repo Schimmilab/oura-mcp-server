@@ -5,8 +5,14 @@ forgot (``test_api.py``, ``test_advanced_features.py``) failed at collection —
 which aborted the whole run, so no test in the suite executed.
 """
 
+import os
 import sys
+import time
 from pathlib import Path
+
+# Local-time output (charger periods, timeline) is asserted in Europe/Berlin.
+os.environ.setdefault("TZ", "Europe/Berlin")
+time.tzset()
 
 SRC = Path(__file__).parent.parent / "src"
 if str(SRC) not in sys.path:

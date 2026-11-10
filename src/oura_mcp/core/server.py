@@ -421,6 +421,24 @@ class OuraMCPServer:
                 }
             ))
 
+            # Add sleep timeline tool
+            tools.append(types.Tool(
+                name="get_sleep_timeline",
+                description=(
+                    "5-minute timeline of the main sleep of a day: sleep phases "
+                    "(classified by Oura, not measured) next to heart rate and HRV "
+                    "(measured), plus HR nadir, breathing rate and restless periods. "
+                    "resolution='30s' returns 30-second phase blocks instead."
+                ),
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "day": {"type": "string", "description": "YYYY-MM-DD (default: today)"},
+                        "resolution": {"type": "string", "enum": ["5min", "30s"], "default": "5min"},
+                    },
+                },
+            ))
+
             # Add heart rate tool
             tools.append(types.Tool(
                 name="get_heart_rate_data",
@@ -541,6 +559,16 @@ class OuraMCPServer:
                     "type": "object",
                     "properties": {}
                 }
+            ))
+
+            # Add ring battery tool
+            tools.append(types.Tool(
+                name="get_ring_battery",
+                description="Ring battery level and charger periods (when the ring was not worn)",
+                inputSchema={
+                    "type": "object",
+                    "properties": {"hours": {"type": "integer", "description": "Look-back window in hours", "default": 24}},
+                },
             ))
 
             # Add SpO2 tool
@@ -839,6 +867,12 @@ class OuraMCPServer:
                     result = await self._tool_get_sleep_sessions(days)
                     return [types.TextContent(type="text", text=result)]
 
+                elif name == "get_sleep_timeline":
+                    result = await self._tool_get_sleep_timeline(
+                        arguments.get("day"), arguments.get("resolution", "5min")
+                    )
+                    return [types.TextContent(type="text", text=result)]
+
                 elif name == "get_heart_rate_data":
                     hours = arguments.get("hours", 24)
                     result = await self._tool_get_heart_rate_data(hours)
@@ -881,6 +915,10 @@ class OuraMCPServer:
 
                 elif name == "get_ring_configuration":
                     result = await self._tool_get_ring_configuration()
+                    return [types.TextContent(type="text", text=result)]
+
+                elif name == "get_ring_battery":
+                    result = await self._tool_get_ring_battery(arguments.get("hours", 24))
                     return [types.TextContent(type="text", text=result)]
 
                 elif name == "get_spo2_data":
@@ -1018,6 +1056,10 @@ class OuraMCPServer:
         """Get detailed sleep sessions with exact times and durations."""
         return await self.data_tools.get_sleep_sessions(days)
 
+    async def _tool_get_sleep_timeline(self, day, resolution: str) -> str:
+        """5-minute sleep timeline (phases + HR + HRV)."""
+        return await self.data_tools.get_sleep_timeline(day, resolution)
+
     async def _tool_get_heart_rate_data(self, hours: int) -> str:
         """Get time-series heart rate data."""
         return await self.data_tools.get_heart_rate_data(hours)
@@ -1053,6 +1095,10 @@ class OuraMCPServer:
     async def _tool_get_ring_configuration(self) -> str:
         """Get ring configuration."""
         return await self.data_tools.get_ring_configuration()
+
+    async def _tool_get_ring_battery(self, hours: int) -> str:
+        """Ring battery level and charger periods."""
+        return await self.data_tools.get_ring_battery(hours)
 
     async def _tool_get_spo2_data(self, days: int) -> str:
         """Get SpO2 (blood oxygen saturation) data."""
