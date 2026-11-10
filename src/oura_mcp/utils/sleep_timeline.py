@@ -61,9 +61,8 @@ def phase_runs(phases: str, start: str, step_seconds: int) -> List[Dict[str, Any
             "start": _hhmm(a),
             "end": _hhmm(b),
             "phase": PHASE_NAMES.get(phases[i], phases[i]),
-            # Minutes between the printed clock times, so "00:14–00:39" reads 25 min.
-            "minutes": int((b.replace(second=0, microsecond=0)
-                            - a.replace(second=0, microsecond=0)).total_seconds() // 60),
+            # Real duration: a single 30-second slot is 0.5 min, never 0.
+            "minutes": round((j - i) * step_seconds / 60, 1),
         })
         i = j
     return runs

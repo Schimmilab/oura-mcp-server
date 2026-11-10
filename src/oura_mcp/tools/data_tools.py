@@ -708,7 +708,7 @@ class DataToolProvider:
                 return out + "Keine 30-Sekunden-Phasen geliefert."
             out += "| von | bis | Phase | Dauer |\n|---|---|---|---|\n"
             for r in phase_runs(phases, night["bedtime_start"], 30):
-                out += f"| {r['start']} | {r['end']} | {r['phase']} | {r['minutes']} min |\n"
+                out += f"| {r['start']} | {r['end']} | {r['phase']} | {r['minutes']:g} min |\n"
             return out
 
         out += "| Zeit | Phase | HR | HRV |\n|---|---|---|---|\n"
