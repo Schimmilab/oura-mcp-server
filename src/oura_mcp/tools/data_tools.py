@@ -89,6 +89,10 @@ class DataToolProvider:
                     result += f"**Efficiency:** {session['efficiency']}%\n"
                 if session.get("latency"):
                     result += f"**Sleep Latency:** {session['latency'] // 60}m\n"
+                if session.get("average_breath") is not None:
+                    result += f"**Breathing rate:** {session['average_breath']} /min\n"
+                if session.get("restless_periods") is not None:
+                    result += f"**Restless periods:** {session['restless_periods']}\n"
 
                 result += "\n"
 
@@ -329,12 +333,15 @@ class DataToolProvider:
             result += f"**Status:** {status}\n"
             result += f"*{note}*\n\n"
 
-        result += f"## Daily Values\n\n"
-        for record in spo2_data:
-            day = record.get("day", "Unknown")
-            spo2_avg = record.get("spo2_percentage", {}).get("average")
-            if spo2_avg:
-                result += f"- **{day}:** {spo2_avg:.1f}%\n"
+        result += "## Daily Values\n\n| Tag | SpO2 Ø | BDI |\n|---|---|---|\n"
+        for record in sorted(spo2_data, key=lambda x: x.get("day", ""), reverse=True):
+            avg = (record.get("spo2_percentage") or {}).get("average")
+            bdi = record.get("breathing_disturbance_index")
+            avg_txt = "—" if avg is None else f"{avg:.1f} %"
+            bdi_txt = "—" if bdi is None else bdi
+            result += f"| {record.get('day', 'Unknown')} | {avg_txt} | {bdi_txt} |\n"
+        result += ("\n*BDI = Breathing Disturbance Index (0–100) aus erkannten SpO2-Abfällen. "
+                   "Gegenprobe: AHI aus OSCAR.*\n")
 
         return result
 
@@ -524,8 +531,12 @@ class DataToolProvider:
         for record in records_sorted:
             day = record.get("day", "Unknown")
             va = record.get("vascular_age")
-            if va is not None:
-                result += f"- **{day}:** {va} years\n"
+            pwv = record.get("pulse_wave_velocity")
+            if va is not None or pwv is not None:
+                pwv_txt = "—" if pwv is None else f"{pwv:.2f} m/s"
+                result += f"- **{day}:** {va if va is not None else '—'} years · PWV {pwv_txt}\n"
+        result += ("\n*PWV laut Oura-Spec abgeleitet aus dem vaskulären Alter (mit möglichem Offset), "
+                   "keine eigene Messung — nicht als unabhängige Gegenprobe zu anderen Geräten verwenden.*\n")
 
         return result
 
